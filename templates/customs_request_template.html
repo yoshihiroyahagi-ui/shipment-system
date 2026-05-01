@@ -1,0 +1,433 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>通関依頼書 HTMLテンプレート</title>
+<style>
+  :root{
+    --border:#222;
+    --grid:#777;
+    --soft:#f5f7fb;
+    --accent:#163b72;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    padding:24px;
+    font-family: Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    color:#111;
+    background:#f1f3f6;
+  }
+  .page{
+    width: 1100px;
+    margin:0 auto;
+    background:#fff;
+    padding:28px 32px 36px;
+    box-shadow:0 2px 10px rgba(0,0,0,.08);
+  }
+  .topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:24px;
+    margin-bottom:14px;
+  }
+  .title{
+    font-size:26px;
+    font-weight:700;
+    letter-spacing:.02em;
+    color:var(--accent);
+  }
+  .meta{
+    text-align:right;
+    font-size:14px;
+    line-height:1.7;
+    min-width:240px;
+  }
+  .address-block{
+    display:flex;
+    justify-content:space-between;
+    gap:32px;
+    margin:10px 0 22px;
+  }
+  .to-block{
+    flex:1;
+    font-size:14px;
+    line-height:1.7;
+    white-space:pre-line;
+  }
+  .from-block{
+    flex:1;
+    font-size:14px;
+    line-height:1.7;
+    white-space:pre-line;
+    text-align: right;
+  }
+  .greeting{
+    font-size:14px;
+    line-height:1.9;
+    margin:4px 0 18px;
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+  }
+  .grid th,.grid td{
+    border:1px solid var(--border);
+    padding:8px 10px;
+    vertical-align:middle;
+    font-size:13px;
+  }
+  .grid th{
+    background:var(--soft);
+    font-weight:700;
+    text-align:center;
+  }
+  .center{text-align:center}
+  .right{text-align:right}
+  .section{
+    margin-top:18px;
+  }
+  .section-title{
+    font-size:14px;
+    font-weight:700;
+    margin:0 0 8px;
+    padding:6px 10px;
+    background:var(--accent);
+    color:#fff;
+  }
+  .two-col{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:16px;
+  }
+  .block{
+    border:1px solid var(--border);
+    min-height:86px;
+    padding:10px 12px;
+    font-size:13px;
+    line-height:1.7;
+    white-space:pre-line;
+  }
+  .subgrid td.label{
+    width:150px;
+    background:var(--soft);
+    font-weight:700;
+  }
+  .subgrid td{
+    border:1px solid var(--border);
+    padding:7px 9px;
+    font-size:13px;
+    vertical-align:top;
+  }
+  .list-lines{
+    border:1px solid var(--border);
+    padding:10px 12px;
+    min-height:92px;
+    white-space:pre-line;
+    line-height:1.8;
+    font-size:13px;
+  }
+  .chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 8px;
+  }
+  .chip{
+    border:1px solid var(--grid);
+    padding:4px 8px;
+    border-radius:999px;
+    font-size:12px;
+    background:#fff;
+  }
+  .footer-note{
+    margin-top:16px;
+    font-size:12px;
+    color:#444;
+  }
+  @media print{
+    body{background:#fff;padding:0}
+    .page{width:auto;margin:0;box-shadow:none;padding:14mm}
+  }
+</style>
+</head>
+<body>
+    <div class="print-toolbar">
+  <button onclick="window.print()">印刷</button>
+</div>
+<div class="page">
+  <div class="topbar">
+    <div class="title">通関依頼書</div>
+    <div class="meta">
+      <div><strong>依頼日：</strong><span id="request_date"></span></div>
+      <div><strong>依頼書番号：</strong><span id="request_no"></span></div>
+      <div><strong>案件番号：</strong><span id="job_no"></span></div>
+    </div>
+  </div>
+
+  <div class="address-block">
+    <div class="to-block" id="to_block"></div>
+    <div class="from-block" id="from_block"></div>
+  </div>
+
+  <div class="greeting" id="greeting"></div>
+
+  <table class="grid">
+    <tr>
+      <th>指示日</th>
+      <th>通関希望</th>
+      <th>搬入確認番号</th>
+      <th>到着地</th>
+      <th>個数</th>
+      <th>重量</th>
+      <th>M3</th>
+      <th>建値</th>
+      <th>通貨</th>
+      <th>申告金額</th>
+    </tr>
+    <tr class="center">
+      <td id="instruction_date"></td>
+      <td id="customs_declared_date"></td>
+      <td id="inbound_no"></td>
+      <td id="pod"></td>
+      <td id="pkgs"></td>
+      <td id="gw"></td>
+      <td id="cbm"></td>
+      <td id="incoterms"></td>
+      <td id="currency"></td>
+      <td id="decl_amount"></td>
+    </tr>
+  </table>
+
+  <div class="section">
+    <div class="section-title">輸入者情報</div>
+    <table class="subgrid">
+      <tr>
+        <td class="label">輸入者</td><td id="customer_name_e"></td>
+        <td class="label">電話番号</td><td id="customer_phone"></td>
+        <td class="label">法人番号</td><td id="customer_c_registration"></td>
+      </tr>
+      <tr>
+        <td class="label">輸入者住所</td><td id="customer_address" colspan="3"></td>
+        <td class="label">輸入者符号</td><td id="customer_ie_registration"></td>
+      </tr>
+      <tr>
+        <td class="label">リアルタイム口座番号</td><td id="customer_real_time"></td>
+        <td class="label">納税方法</td><td id="customer_tax_payment"></td>
+        <td class="label">包括保険番号</td><td id="customer_open_policy"></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section two-col">
+    <div>
+      <div class="section-title">SHIPPER NAME AND ADDRESS</div>
+      <div class="block" id="shipper_block"></div>
+    </div>
+    <div>
+      <div class="section-title">本船到着情報</div>
+      <table class="subgrid">
+        <tr><td class="label">本船名</td><td id="vessel_voyage"></td></tr>
+        <tr><td class="label">ETA</td><td id="eta"></td></tr>
+        <tr><td class="label">搬入先</td><td id="pickup_place"></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">配送情報</div>
+    <table class="subgrid">
+      <tr>
+        <td class="label">搬出希望日</td><td id="pickup_date"></td>
+        <td class="label">納品先</td><td id="delivery_name"></td>
+      </tr>
+      <tr>
+        <td class="label">納品日</td><td id="delivery_date"></td>
+        <td class="label">住所</td><td id="delivery_address1"></td>
+      </tr>
+      <tr>
+        <td class="label">納品時間</td><td id="delivery_time"></td>
+        <td class="label">住所2</td><td id="delivery_address2"></td>
+      </tr>
+      <tr>
+        <td class="label">引取業者名</td><td id="trucker_name"></td>
+        <td class="label">TEL / 担当者</td><td><span id="delivery_tel"></span> / <span id="delivery_contact"></span></td>
+      </tr>
+      <tr>
+        <td class="label">希望車種</td><td id="vehicle_type"></td>
+        <td class="label"></td><td></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section two-col">
+    <div>
+      <div class="section-title">Invoice / Item</div>
+      <table class="subgrid">
+        <tr><td class="label">INVOICE NO.</td><td id="invoice_no"></td></tr>
+        <tr><td class="label">ITEM(品名)</td><td id="item_name"></td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="section-title">商品情報</div>
+      <div class="list-lines" id="description_block"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">送付書類 / 立替 / 作業範囲</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">送付書類</div>
+        <div class="chips" id="documents"></div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">立替</div>
+        <div class="chips" id="cost_cover"></div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:6px">作業範囲</div>
+        <div class="chips" id="work_scopes"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">通関リクエスト</div>
+    <div class="list-lines" id="requests"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">備考 / Special Instructions</div>
+    <div class="list-lines" id="special_inst"></div>
+  </div>
+
+  <div class="footer-note">
+    このHTMLは、見やすさ優先で通関依頼Excelの内容をHTML帳票へ置き換えたテンプレートです。
+  </div>
+</div>
+
+<script>
+const data = {
+  request_date: "2026/02/14",
+  request_no: "BL26021703IM",
+  job_no: "BL26021703IM",
+  broker_name: "天行株式会社",
+  broker_person: "ご担当者様",
+  from_block: "東京都中央区日本橋兜町17-2-4F\n株式会社ビジネスラボ\nTEL:03-6555-4496 / FAX:03-4496-4103\n担当：矢作 嘉久\n携帯：080-4980-6620\nemail: yoshihiro.yahagi@bizlabo-tokyo.co.jp",
+  greeting: "平素は大変お世話になり誠にありがとうございます。\n以下の通り輸入通関をご依頼いたしますので内容をご確認の上申告手続きをお願い致します。\n今後とも何卒宜しくお願い致します。",
+  instruction_date: "2026/02/14",
+  customs_declared_date: "2026/02/18",
+  inbound_no: "EGLV156600051920",
+  pod: "TOKYO",
+  pkgs: "80 CARTONS",
+  gw: "1298.5 KG",
+  cbm: "3.47 M3",
+  incoterms: "FOB",
+  decl_amount: "26,354",
+  customer_name_e: "GREEN HOUSE CO., LTD.",
+  customer_address: "5F UNOSAWA-TOKYU BUILDING 1-19-15 EBISU, SHIBUYA-KU TOKYO 150-0013, JAPAN",
+  customer_phone: "03-5421-2256",
+  customer_c_registration: "8011001006837",
+  customer_ie_registration: "P00786320000",
+  customer_real_time: "00011880004245",
+  customer_tax_payment: "リアルタイム",
+  customer_open_policy: "H075007-01",
+  shipper_block: "SHENZHEN ITC TECHNOLOGY CO., LTD\nNO. 2165, XIHUAN ROAD, SHAJING STREET, BAOAN\nDISTRICT, SHENZHEN, CHINA (ZIP CODE:518104)",
+  vessel_voyage: "EVER WARM 1725-006N",
+  eta: "2026/02/17",
+  pickup_place: "AOMI A-4 (EVERGREEN) TERMINAL",
+  pickup_date: "2026/02/18",
+  delivery_date: "2026/02/19",
+  delivery_time: "AM 9:00",
+  delivery_name: "株式会社グリーンハウス 商品センター",
+  delivery_address1: "（ここに delivery_dest の住所1）",
+  delivery_address2: "（ここに delivery_dest の住所2）",
+  delivery_tel: "",
+  delivery_contact: "",
+  trucker_name: "東方国際物流株式会社",
+  vehicle_type: "20FT(2軸)",
+  invoice_no: "ITCCI20260124JA",
+  item_name: "MOBILE BATTERY",
+  descriptions: ["INVOICE通り"],
+  documents: ["AN", "BL", "INV", "PL", "カタログ", "保険", "通関実績"],
+  cost_cover: ["なし", "あり", "AN", "税金"],
+  work_scopes: ["通関", "搬出予約", "DP", "ドレージ", "対査", "デバン", "トラック"],
+  requests: [
+    "通関日は必ず守ってください。",
+    "ANの立替をお願いします。(末締め翌月末支払い)",
+    "顧客リアルタイム口座で申告をして下さい。",
+    "予備申告を行って下さい。希望日：2026/02/07",
+    "ディスパッチ/搬出書類を早めに送付願います。希望日：2026/02/07"
+  ],
+  special_inst: "必要があればここに特記事項を表示"
+};
+
+function text(id, value){
+  const el = document.getElementById(id);
+  if (el) el.textContent = value || "";
+}
+function html(id, value){
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = value || "";
+}
+function chips(id, items){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = (items || []).filter(Boolean).map(v => `<span class="chip">${v}</span>`).join("");
+}
+function lines(id, items){
+  text(id, (items || []).filter(Boolean).join("\n"));
+}
+
+text("request_date", data.request_date);
+text("request_no", data.request_no);
+text("job_no", data.job_no);
+text("to_block", `${data.broker_name} 御中\n${data.broker_person}`);
+text("from_block", data.from_block);
+text("greeting", data.greeting);
+text("instruction_date", data.instruction_date);
+text("customs_declared_date", data.customs_declared_date);
+text("inbound_no", data.inbound_no);
+text("pod", data.pod);
+text("pkgs", data.pkgs);
+text("gw", data.gw);
+text("cbm", data.cbm);
+text("incoterms", data.incoterms);
+text("currency", data.currency);
+text("decl_amount", data.decl_amount);
+text("customer_name_e", data.customer_name_e);
+text("customer_address", data.customer_address);
+text("customer_phone", data.customer_phone);
+text("customer_c_registration", data.customer_c_registration);
+text("customer_ie_registration", data.customer_ie_registration);
+text("customer_real_time", data.customer_real_time);
+text("customer_tax_payment", data.customer_tax_payment);
+text("customer_open_policy", data.customer_open_policy);
+text("shipper_block", data.shipper_block);
+text("vessel_voyage", data.vessel_voyage);
+text("eta", data.eta);
+text("pickup_place", data.pickup_place);
+text("pickup_date", data.pickup_date);
+text("delivery_date", data.delivery_date);
+text("delivery_time", data.delivery_time);
+text("delivery_name", data.delivery_name);
+text("delivery_address1", data.delivery_address1);
+text("delivery_address2", data.delivery_address2);
+text("delivery_tel", data.delivery_tel);
+text("delivery_contact", data.delivery_contact);
+text("trucker_name", data.trucker_name);
+text("vehicle_type", data.vehicle_type);
+text("invoice_no", data.invoice_no);
+text("item_name", data.item_name);
+lines("description_block", data.descriptions);
+chips("documents", data.documents);
+chips("cost_cover", data.cost_cover);
+chips("work_scopes", data.work_scopes);
+lines("requests", data.requests.map((v,i)=>`${i+1}. ${v}`));
+text("special_inst", data.special_inst);
+</script>
+</body>
+</html>

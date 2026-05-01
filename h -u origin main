@@ -1,0 +1,121 @@
+[35mimport_charge_rate_card.js[m[36m:[mimport { createClient } from '@[1;31msupabase[m/[1;31msupabase[m-js'
+[35mimport_charge_rate_card.js[m[36m:[mconst [1;31msupabase[m = createClient(
+[35mimport_charge_rate_card.js[m[36m:[m  'https://pjjjmvstfrtzyqtbqtlz.[1;31msupabase[m.co',
+[35mimport_charge_rate_card.js[m[36m:[m    const { error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[mimport { createClient } from '@[1;31msupabase[m/[1;31msupabase[m-js'
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error: deleteError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error: insertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[mconst [1;31msupabase[m = createClient(
+[35mindex.js[m[36m:[m  'https://pjjjmvstfrtzyqtbqtlz.[1;31msupabase[m.co',
+[35mindex.js[m[36m:[m  const { data, error, count } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: destData, error: destError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data: existing, error: checkError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      [1;31msupabase[m.from('customers').select('*').order('customer_code'),
+[35mindex.js[m[36m:[m      [1;31msupabase[m.from('suppliers').select('*').order('supplier_name'),
+[35mindex.js[m[36m:[m      [1;31msupabase[m.from('partners').select('*').order('partner_name'),
+[35mindex.js[m[36m:[m      [1;31msupabase[m.from('master_codes').select('*').order('master_type'),
+[35mindex.js[m[36m:[m      [1;31msupabase[m.from('inbound_place_master').select('*').eq('is_active', true).order('place_name'),
+[35mindex.js[m[36m:[m      [1;31msupabase[m.from('charge_rate_card').select('*').eq('is_active', true).order('sort_no')
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: customerRows, error: customerError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data: supplierRows, error: supplierError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data: partnerRows, error: partnerError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: shipment, error: shipmentError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[mconst { data: containers, error: containerError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data: supplierRow, error: supplierError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data: customerRow, error: customerError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { data: placeRow, error: placeError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: lineRows, error: lineError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: destRows, error: destError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: inserted, error: insertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { error: updateError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: updatedRow, error: readError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { error: containerDeleteError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { error: containerInsertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m        const { error: lineUpdateError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m        const { error: lineInsertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: shipments, error: shipErr } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: lines, error: lineErr } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m        ? [1;31msupabase[m.from('customers').select('customer_code, customer_name').in('customer_code', customerCodes)
+[35mindex.js[m[36m:[m        ? [1;31msupabase[m.from('dests').select('dest_id, dest_name, d_address1, d_address2').in('dest_id', destIds)
+[35mindex.js[m[36m:[m        ? [1;31msupabase[m.from('places').select('place_id, place_name').in('place_id', pickupIds)
+[35mindex.js[m[36m:[m    const { error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    let query = [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: shipment, error: shipmentError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    let query = [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: inserted, error: insertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error: shipmentError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error: snapshotError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error: shipmentUpdateError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error: snapshotError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error: deleteError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[mconst { error: deleteChargeError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { error: insertChargeError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { error: insertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[mconst { error: chargeDeleteError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m  const { error: chargeInsertError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: shipment, error: shipmentError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: snapshot, error: snapshotError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: containers, error: containerError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: supplierRow, error: supplierError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: customerRow, error: customerError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: placeRow, error: placeError } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m      const { data: custRows } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { error } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data: access, error: accessErr } = await [1;31msupabase[m
+[35mindex.js[m[36m:[m    await [1;31msupabase[m
+[35mindex.js[m[36m:[m    const { data, error } = await [1;31msupabase[m
+[35mlib/supabase.js[m[36m:[mimport { createClient } from '@[1;31msupabase[m/[1;31msupabase[m-js';
+[35mlib/supabase.js[m[36m:[mexport const [1;31msupabase[m = createClient(
+[35mlib/supabase.js[m[36m:[m  'https://pjjjmvstfrtzyqtbqtlz.[1;31msupabase[m.co',
+[35mpackage-lock.json[m[36m:[m  "name": "[1;31msupabase[m-test",
+[35mpackage-lock.json[m[36m:[m      "name": "[1;31msupabase[m-test",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/[1;31msupabase[m-js": "^2.103.0",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/auth-js": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/auth-js/-/auth-js-2.103.0.tgz",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/functions-js": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/functions-js/-/functions-js-2.103.0.tgz",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/phoenix": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/phoenix/-/phoenix-0.4.0.tgz",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/postgrest-js": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/postgrest-js/-/postgrest-js-2.103.0.tgz",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/realtime-js": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/realtime-js/-/realtime-js-2.103.0.tgz",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/phoenix": "^0.4.0",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/storage-js": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/storage-js/-/storage-js-2.103.0.tgz",
+[35mpackage-lock.json[m[36m:[m    "node_modules/@[1;31msupabase[m/[1;31msupabase[m-js": {
+[35mpackage-lock.json[m[36m:[m      "resolved": "https://registry.npmjs.org/@[1;31msupabase[m/[1;31msupabase[m-js/-/[1;31msupabase[m-js-2.103.0.tgz",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/auth-js": "2.103.0",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/functions-js": "2.103.0",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/postgrest-js": "2.103.0",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/realtime-js": "2.103.0",
+[35mpackage-lock.json[m[36m:[m        "@[1;31msupabase[m/storage-js": "2.103.0"
+[35mpackage.json[m[36m:[m  "name": "[1;31msupabase[m-test",
+[35mpackage.json[m[36m:[m    "@[1;31msupabase[m/[1;31msupabase[m-js": "^2.103.0",
+[35mservices/masterCodeService.js[m[36m:[mimport { [1;31msupabase[m } from '../lib/[1;31msupabase[m.js';
+[35mservices/masterCodeService.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[mimport { [1;31msupabase[m } from '../lib/[1;31msupabase[m.js';
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mservices/shipmentDocRelayResolver.js[m[36m:[m  const { data, error } = await [1;31msupabase[m
+[35mupsert_shipments.js[m[36m:[mimport { createClient } from '@[1;31msupabase[m/[1;31msupabase[m-js'
+[35mupsert_shipments.js[m[36m:[mconst [1;31msupabase[m = createClient(
+[35mupsert_shipments.js[m[36m:[m  'https://pjjjmvstfrtzyqtbqtlz.[1;31msupabase[m.co',
+[35mupsert_shipments.js[m[36m:[m    const { error } = await [1;31msupabase[m

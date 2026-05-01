@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>CSV Upload Test</title>
+</head>
+<body>
+  <h2>CSV Upload Test</h2>
+
+  <input type="file" id="csvFile" accept=".csv">
+  <button onclick="uploadCsv()">Upload</button>
+
+  <pre id="result"></pre>
+
+  <script>
+    async function uploadCsv() {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) {
+        alert('CSVを選んで');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        const res = await fetch('http://localhost:3000/api/master/import/shipment-charges', {
+  method: 'POST',
+  body: fd
+});
+
+        const text = await res.text();
+        document.getElementById('result').textContent = text;
+      } catch (e) {
+        document.getElementById('result').textContent =
+          'ERROR: ' + (e.message || String(e));
+      }
+    }
+  </script>
+</body>
+</html>
