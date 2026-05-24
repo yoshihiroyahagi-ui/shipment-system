@@ -35,15 +35,28 @@ export async function getMasterLabelMap() {
 }
 
 export async function getMasterLabel(type, code) {
-  if (!code) return '';
+  const t = String(type || '').trim();
+  const c = String(code || '').trim();
+
+  if (!t || !c) return '';
+
   const map = await getMasterLabelMap();
-  return map?.[type]?.[code] || code;
+  const dict = map?.[t] || {};
+
+  return dict[c] || c;
 }
 
 export async function getMasterLabels(type, codes = []) {
+  const t = String(type || '').trim();
+  const list = Array.isArray(codes) ? codes : [];
+
   const map = await getMasterLabelMap();
-  const dict = map?.[type] || {};
-  return (Array.isArray(codes) ? codes : []).map(code => dict[code] || code);
+  const dict = map?.[t] || {};
+
+  return list.map(code => {
+    const c = String(code || '').trim();
+    return dict[c] || c;
+  });
 }
 
 export function clearMasterLabelCache() {

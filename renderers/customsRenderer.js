@@ -360,13 +360,21 @@ const currencyMap = {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+  @media print {
+  .screen-toolbar,
+  .no-print {
+    display:none !important;
+  }
+}
 }
 </style>
 </head>
 
-<body>
-<div class="print-toolbar">
-  <button onclick="window.print()">印刷</button>
+<div class="screen-toolbar no-print">
+  <button class="pdf-btn"
+    onclick="window.open(location.pathname + '/pdf' + location.search, '_blank')">
+    PDFを開く
+  </button>
 </div>
 
 <div class="page">

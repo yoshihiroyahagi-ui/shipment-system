@@ -11,7 +11,9 @@ import { resolveShipmentDocs } from './services/shipmentDocRelayResolver.js';
 import { buildANHtmlFromPayload } from './renderers/anRenderer.js';
 import { buildCustomsHtmlFromPayload } from './renderers/customsRenderer.js';
 import { buildDeliveryHtmlFromPayload } from './renderers/deliveryRenderer.js';
-
+import invoiceRouter from './routes/invoice.js';
+import puppeteer from 'puppeteer';
+import { resolveDeliveryPayload } from './services/deliveryResolver.js';
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.use('/api/invoice', invoiceRouter);
 
 app.use(express.json({ limit: '20mb' }));
 
@@ -331,7 +335,7 @@ const supabase = createClient(
 
 // --- session store (今日はメモリでOK) ---
 const sessions = new Map()
-const SESSION_TTL_MS = 1000 * 60 * 60 * 6 // 6時間
+const SESSION_TTL_MS = 1000 * 60 * 60 * 16 // 6時間
 
 function createSession(customer) {
   const sessionId = crypto.randomUUID()
@@ -502,7 +506,7 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
       commodity_note,
       customer_ref_no,
       updated_at,
-      shipments (
+      shipments!inner (
         shipment_id,
         job_no,
         status,
@@ -513,6 +517,7 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
         customer_code,
         supplier_id,
         delay_info,
+        earliest_delivery_date,
         container_no_1, container_type_1, seal_no_1, pcs_1, gw_kg_1, cbm_1,
         container_no_2, container_type_2, seal_no_2, pcs_2, gw_kg_2, cbm_2,
         container_no_3, container_type_3, seal_no_3, pcs_3, gw_kg_3, cbm_3,
@@ -536,12 +541,26 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
         d_contact_person
       )
     `, { count: 'exact' })
-    .eq('customer_code', customerCode)
+    .eq('shipments.customer_code', customerCode)
+    .order('job_no', {
+      referencedTable: 'shipments',
+      ascending: true
+    })
     .range(from, to)
 
   if (error) throw error
 
   let rows = (data || []).map(mapLineRow)
+
+  rows.sort((a, b) => {
+  const getNo = (v) => {
+    const s = String(v || '');
+    const m = s.match(/(\d{4})IM$/);
+    return m ? Number(m[1]) : 0;
+  };
+
+  return getNo(a.job_no) - getNo(b.job_no);
+});
 
   const doneStatuses = ['配達済み', 'キャンセル', '完了']
   if (filterMode === 'ACTIVE') {
@@ -550,14 +569,18 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
     rows = rows.filter(r => doneStatuses.includes(String(r.status || '').trim()))
   }
 
-  const rowsWithBicon = applyBiconFlagsAcrossRows(rows);
+  const rowsWithBicon = await applyBiconFlagsAcrossRows(rows);
+
+  const next_offset = from + size;
+  const has_more = (data || []).length === size;
+  const total = count || rowsWithBicon.length;
 
   return {
-    rows: rowsWithBicon,
-    total: count || rows.length,
-    next_offset: from + rows.length,
-    has_more: (from + rows.length) < (count || 0)
-  }
+  rows: rowsWithBicon,
+  next_offset,
+  has_more,
+  total
+};
 }
 
 async function getLineDetail(lineId, customerCode) {
@@ -581,13 +604,14 @@ async function getLineDetail(lineId, customerCode) {
       commodity_note,
       customer_ref_no,
       updated_at,
-      shipments (
+      shipments!inner (
         shipment_id,
         suppliers (
           supplier_name
         ),
         job_no,
         status,
+        earliest_delivery_date,
         etd,
         eta,
         vessel,
@@ -606,7 +630,6 @@ async function getLineDetail(lineId, customerCode) {
         customs_status,
         cargo_inbound,
         cy_cut,
-        earliest_delivery_date,
         vehicle_type,
         carrier_name,
         vehicle_no,
@@ -625,7 +648,7 @@ async function getLineDetail(lineId, customerCode) {
       )
     `)
     .eq('line_id', lineId)
-    .eq('customer_code', customerCode)
+    .eq('shipments.customer_code', customerCode)
     .single();
 
   if (error) throw error;
@@ -1014,14 +1037,16 @@ app.get('/api/admin/initial-data', async (req, res) => {
       partnersRes,
       masterCodesRes,
       inboundPlacesRes,
-      rateCardsRes
+      rateCardsRes,
+      destsRes
     ] = await Promise.all([
       supabase.from('customers').select('*').order('customer_code'),
       supabase.from('suppliers').select('*').order('supplier_name'),
       supabase.from('partners').select('*').order('partner_name'),
       supabase.from('master_codes').select('*').order('master_type'),
       supabase.from('inbound_place_master').select('*').eq('is_active', true).order('place_name'),
-      supabase.from('charge_rate_card').select('*').eq('is_active', true).order('sort_no')
+      supabase.from('charge_rate_card').select('*').eq('is_active', true).order('sort_no'),
+      supabase.from('dests').select('*').order('customer_code').order('dest_id')
     ]);
 
     const errors = [
@@ -1030,7 +1055,8 @@ app.get('/api/admin/initial-data', async (req, res) => {
       partnersRes.error,
       masterCodesRes.error,
       inboundPlacesRes.error,
-      rateCardsRes.error
+      rateCardsRes.error,
+      destsRes.error
     ].filter(Boolean);
 
     if (errors.length) {
@@ -1044,7 +1070,8 @@ app.get('/api/admin/initial-data', async (req, res) => {
       partners: partnersRes.data || [],
       master_codes: masterCodesRes.data || [],
       inbound_places: inboundPlacesRes.data || [],
-      rate_cards: rateCardsRes.data || []
+      rate_cards: rateCardsRes.data || [],
+      dests: destsRes.data || []
     });
 
   } catch (err) {
@@ -1058,7 +1085,7 @@ app.get('/api/admin/initial-data', async (req, res) => {
 app.get('/api/admin/shipments', async (req, res) => {
   try {
     const offset = Number(req.query.offset || 0);
-    const limit = Number(req.query.limit || 30);
+    const limit = Number(req.query.limit || 300);
 
     const { data, error } = await supabase
       .from('shipments')
@@ -1088,6 +1115,10 @@ app.get('/api/admin/shipments', async (req, res) => {
         delivery_data,
         customs_data,
         an_url,
+        carrier_name,
+        vehicle_no,
+        driver_name,
+        driver_phone,
         delivery_request_url,
         customs_request_url,
         earliest_delivery_date,
@@ -1103,11 +1134,25 @@ app.get('/api/admin/shipments', async (req, res) => {
         container_no_10, container_type_10
         
       `)
+      .order('job_no', { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
     
     const rows = data || [];
+
+    rows.sort((a, b) => {
+  const getNo = (v) => {
+    const s = String(v || '');
+
+    // BL25061898IM → 1898
+    const m = s.match(/(\d{4})IM$/);
+
+    return m ? Number(m[1]) : 0;
+  };
+
+  return getNo(a.job_no) - getNo(b.job_no);
+});
 
     const customerCodes = [...new Set(
       rows.map(r => String(r.customer_code || '').trim()).filter(Boolean)
@@ -1166,12 +1211,12 @@ if (partnerCodes.length > 0) {
 
   partnerMap = (partnerRows || []).reduce((acc, p) => {
   const rec = {
-    partner_name: p.partner_name || p.partner_code || p.partner_id || '',
+    partner_name: p.partner_name || p.partner_code || '',
     partner_type: p.partner_type || ''
   };
 
   if (p.partner_code) acc[String(p.partner_code).trim()] = rec;
-  if (p.partner_id) acc[String(p.partner_id).trim()] = rec;
+  
 
   return acc;
 }, {});
@@ -1184,7 +1229,7 @@ console.log('[broker debug]', {
 }
 
     const mapped = rows.map(row => mapAdminShipmentRow(row, customerMap, supplierMap, partnerMap));
-    const mappedWithBicon = applyBiconFlagsAcrossRows(mapped);
+    const mappedWithBicon = await applyBiconFlagsAcrossRows(mapped);
    
     res.json({
       ok: true,
@@ -1247,8 +1292,11 @@ app.get('/api/admin/shipment-detail', async (req, res) => {
         delivery_data,
         vehicle_type,
         vehicle_no,
+        carrier_name,
         driver_name,
         driver_phone,
+        cargo_inbound,
+        cy_cut,
         earliest_delivery_date,
         container_no_1, container_type_1, seal_no_1, pcs_1, gw_kg_1, cbm_1,
         container_no_2, container_type_2, seal_no_2, pcs_2, gw_kg_2, cbm_2,
@@ -1483,6 +1531,9 @@ app.post('/api/admin/save-shipment', async (req, res) => {
       voyage: shipment.voyage || '',
       etd: shipment.etd || null,
       eta: shipment.eta || null,
+      item_name: shipment.item_name ?? '',
+      cargo_inbound: shipment.cargo_inbound || null,
+      cy_cut: shipment.cy_cut || null,
       tranship_port: shipment.tranship_port || null,
       tracking_url: shipment.tracking_url || '',
       customer_message: shipment.customer_message || '',
@@ -1491,7 +1542,13 @@ app.post('/api/admin/save-shipment', async (req, res) => {
       delay_info: shipment.delay_info || '',
       service_type_code: shipment.service_type_code || '',
       carrier_id: shipment.carrier_id || null,
+      carrier_name: shipment.carrier_name || null,
+      vehicle_no: shipment.vehicle_no || null,
+      driver_name: shipment.driver_name || null,
+      driver_phone: shipment.driver_phone || null,
       cargo_pickup_location_id: shipment.cargo_pickup_location_id || null,
+      earliest_delivery_date: shipment.earliest_delivery_date || null,
+      vehicle_type: shipment.vehicle_type || null,
 
       container_no_1: shipment.container_no_1 || '',
       container_type_1: shipment.container_type_1 || '',
@@ -1622,25 +1679,25 @@ if (Array.isArray(containers)) {
 
   if (containers.length > 0) {
     const insertRows = containers
-  .map((c, idx) => {
-    const parsedPcs = parsePcsAndUnit(c.pcs);
+      .map((c, idx) => {
+        const parsedPcs = parsePcsAndUnit(c.pcs);
 
-    return {
-      shipment_id: savedShipmentId,
-      sort_no: Number.isFinite(Number(c.sort_no)) ? Number(c.sort_no) : idx + 1,
-      container_no: c.container_no || null,
-      container_type: c.container_type || null,
-      seal_no: c.seal_no || null,
-      pcs: parsedPcs.pcs,
-      pkg_unit: c.pkg_unit || parsedPcs.pkg_unit,
-      gw: toNullableNumber(c.gw),
-      cbm: toNullableNumber(c.cbm),
-      is_bicon: !!c.is_bicon,
-      bicon_group_no: c.bicon_group_no || null,
-      bicon_note: c.bicon_note || null,
-      source: 'admin'
-    };
-  })
+        return {
+          shipment_id: savedShipmentId,
+          sort_no: Number.isFinite(Number(c.sort_no)) ? Number(c.sort_no) : idx + 1,
+          container_no: c.container_no || null,
+          container_type: c.container_type || null,
+          seal_no: c.seal_no || null,
+          pcs: parsedPcs.pcs,
+          pkg_unit: c.pkg_unit || parsedPcs.pkg_unit,
+          gw: toNullableNumber(c.gw),
+          cbm: toNullableNumber(c.cbm),
+          is_bicon: !!c.is_bicon,
+          bicon_group_no: c.bicon_group_no || null,
+          bicon_note: c.bicon_note || null,
+          source: 'admin'
+        };
+      })
       .filter(c =>
         c.container_no ||
         c.container_type ||
@@ -1649,15 +1706,70 @@ if (Array.isArray(containers)) {
         c.gw !== null ||
         c.cbm !== null
       );
-console.log('[DEBUG container insertRows]', JSON.stringify(insertRows, null, 2));
+
+    console.log('[DEBUG container insertRows]', JSON.stringify(insertRows, null, 2));
+
     if (insertRows.length > 0) {
       const { error: containerInsertError } = await supabase
         .from('shipment_containers')
         .insert(insertRows);
 
       if (containerInsertError) throw containerInsertError;
+
+      // ★ここから追加：bicon_groups 保存
+      const { error: biconDeleteError } = await supabase
+        .from('bicon_groups')
+        .delete()
+        .like('bicon_group_id', `${savedShipmentId}-%`);
+
+      if (biconDeleteError) throw biconDeleteError;
+
+      const biconRows = insertRows
+        .filter(c => c.is_bicon && c.bicon_group_no && c.container_no)
+        .map(c => ({
+          bicon_group_id: `${savedShipmentId}-${c.bicon_group_no}-${c.container_no}`,
+          bicon_label: c.bicon_group_no,
+          container_no: c.container_no,
+          part_of_text: c.bicon_note || null,
+          master_pcs: c.pcs || null,
+          master_gw: c.gw || null,
+          master_cbm: c.cbm || null,
+          updated_at: new Date().toISOString()
+        }));
+
+      if (biconRows.length > 0) {
+        const { error: biconUpsertError } = await supabase
+          .from('bicon_groups')
+          .upsert(biconRows, { onConflict: 'bicon_group_id' });
+
+        if (biconUpsertError) throw biconUpsertError;
+      }
+      // ★ここまで追加
     }
   }
+}
+    const { data: existingLines, error: existingLineError } = await supabase
+  .from('shipment_lines')
+  .select('line_id')
+  .eq('shipment_id', savedShipmentId);
+
+if (existingLineError) throw existingLineError;
+
+const incomingLineIds = new Set(
+  lines.map(l => String(l.line_id || '').trim()).filter(Boolean)
+);
+
+const deleteLineIds = (existingLines || [])
+  .map(r => String(r.line_id || '').trim())
+  .filter(id => id && !incomingLineIds.has(id));
+
+if (deleteLineIds.length > 0) {
+  const { error: lineDeleteError } = await supabase
+    .from('shipment_lines')
+    .delete()
+    .in('line_id', deleteLineIds);
+
+  if (lineDeleteError) throw lineDeleteError;
 }
 
     // lines 保存
@@ -1725,20 +1837,31 @@ console.log('[DEBUG container insertRows]', JSON.stringify(insertRows, null, 2))
     res.status(500).json({ ok: false, error: err.message });
   }
 });
-app.post('/api/broker/shipments', async (req, res) => {
-  try {
-    const { token } = req.body || {};
-    const session = sessions.get(token);
+    app.get('/api/broker/shipments', async (req, res) => {
+      try {
+        const token = String(req.query.token || '').trim();
+        const { data: broker, error: authErr } = await supabase
+      .from('partners')
+      .select(`
+        partner_code,
+        partner_name,
+        partner_type
+      `)
+      .eq('portal_token', token)
+      .eq('partner_type', 'BROKER')
+      .maybeSingle();
 
-    if (!session) {
-      return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (authErr) throw authErr;
+
+    if (!broker) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Unauthorized'
+      });
     }
 
-    const brokerCode = session.partner_code || session.broker_code || session.code;
-    if (!brokerCode) {
-      return res.status(400).json({ ok: false, error: 'broker_code not found in session' });
-    }
-console.log('[DEBUG shipment payload]', payload);
+    const brokerCode = broker.partner_code;
+
     const { data: shipments, error: shipErr } = await supabase
       .from('shipments')
       .select(`
@@ -1772,7 +1895,6 @@ console.log('[DEBUG shipment payload]', payload);
         shipment_id,
         line_id,
         commodity,
-        container_no,
         delivery_dest_id,
         delivery_dest_short
       `)
@@ -1792,7 +1914,7 @@ console.log('[DEBUG shipment payload]', payload);
         ? supabase.from('dests').select('dest_id, dest_name, d_address1, d_address2').in('dest_id', destIds)
         : Promise.resolve({ data: [] }),
       pickupIds.length
-        ? supabase.from('places').select('place_id, place_name').in('place_id', pickupIds)
+        ? supabase.from('inbound_place_master').select('place_id, place_name').in('place_id', pickupIds)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -1810,13 +1932,30 @@ console.log('[DEBUG shipment payload]', payload);
       const lineRows = linesByShipment[s.shipment_id] || [];
       const firstLine = lineRows[0] || {};
 
-      const containerSet = new Set();
-      lineRows.forEach(r => {
-        const no = String(r.container_no || '').trim();
-        if (!no || no === '未定') return;
-        containerSet.add(no);
-      });
-      const bicon = getBiconInfoFromShipment(s);
+      const containerNos = [];
+
+      for (let i = 1; i <= 10; i++) {
+        const no = String(s[`container_no_${i}`] || '').trim();
+
+        if (!no || no === '未定') continue;
+
+        containerNos.push(no);
+      }
+     const matchedBicons = containerNos
+  .map(no => biconByContainerNo[no])
+  .filter(Boolean);
+
+const biconGroupIds = [
+  ...new Set(
+    matchedBicons.map(b => b.bicon_group_id).filter(Boolean)
+  )
+];
+
+const biconLabels = [
+  ...new Set(
+    matchedBicons.map(b => b.bicon_label).filter(Boolean)
+  )
+];
 
       const dest = destMap[firstLine.delivery_dest_id] || null;
       const pickup = placeMap[s.cargo_pickup_location_id] || null;
@@ -1843,7 +1982,7 @@ console.log('[DEBUG shipment payload]', payload);
         vessel: s.vessel || '',
         voyage: s.voyage || '',
         eta: s.eta || null,
-        bicon_count: bicon.bicon_count, customs_bicon_notice: bicon.is_bicon ? '搬入仕分け・個別申告が必要' : '' };
+        bicon_count: biconGroupIds.length, bicon_label: biconLabels.join(' / '), customs_bicon_notice: biconGroupIds.length > 0 ? '搬入仕分け・個別申告が必要' : '' };
     });
 
     return res.json({ ok: true, list });
@@ -1861,53 +2000,85 @@ function resolveContainerTypeLabel(v) {
     CT02: '40GP',
     CT03: '40HQ',
     CT04: '20RF',
-    CT05: '40RF',
-    CT06: '20GP(B)',
-    CT07: '40HQ(B)'
+    CT05: '40RF'
   };
 
   return map[value] || value;
 }
 
-function applyBiconFlagsAcrossRows(rows) {
-  const counter = {};
+async function applyBiconFlagsAcrossRows(rows) {
+  // ▼ bicon_groups を取得
+  const { data: bicons, error } = await supabase
+    .from('bicon_groups')
+    .select(`
+      bicon_group_id,
+      bicon_label,
+      container_no
+    `);
 
-  // まず一覧全体で (B)付きコンテナ番号を集計
-  (rows || []).forEach(r => {
-    for (let i = 1; i <= 10; i++) {
-      const no = String(r[`container_no_${i}`] || '').trim();
-      if (!no || no === '未定') continue;
+  if (error) {
+    console.error('[applyBiconFlagsAcrossRows] bicon load error:', error);
+    return rows || [];
+  }
 
-      const typeLabel = resolveContainerTypeLabel(r[`container_type_${i}`]);
-      if (!typeLabel.includes('(B)')) continue;
+  // ▼ container_no → bicon情報Map
+  const biconByContainerNo = {};
 
-      counter[no] = (counter[no] || 0) + 1;
-    }
+  (bicons || []).forEach(b => {
+    const no = String(b.container_no || '').trim();
+    if (!no) return;
+
+    biconByContainerNo[no] = {
+      bicon_group_id: b.bicon_group_id || '',
+      bicon_label: b.bicon_label || b.bicon_group_id || ''
+    };
   });
 
-  // 各rowに反映
+  // ▼ 各rowへ反映
   return (rows || []).map(r => {
     const matched = [];
 
     for (let i = 1; i <= 10; i++) {
       const no = String(r[`container_no_${i}`] || '').trim();
+
       if (!no || no === '未定') continue;
 
-      const typeLabel = resolveContainerTypeLabel(r[`container_type_${i}`]);
-      if (!typeLabel.includes('(B)')) continue;
+      const hit = biconByContainerNo[no];
+      if (!hit) continue;
 
-      if ((counter[no] || 0) >= 2) {
-        matched.push(no);
-      }
+      matched.push(hit);
     }
 
-    const uniq = [...new Set(matched)];
+    // ▼ group単位でユニーク化
+    const uniqGroups = [
+      ...new Set(
+        matched.map(x => x.bicon_group_id).filter(Boolean)
+      )
+    ];
+
+    const uniqLabels = [
+      ...new Set(
+        matched.map(x => x.bicon_label).filter(Boolean)
+      )
+    ];
 
     return {
       ...r,
-      is_bicon: uniq.length > 0,
-      bicon_count: uniq.length,
-      bicon_label: uniq.join(' / ')
+
+      // ▼ バイコン判定
+      is_bicon: uniqGroups.length > 0,
+
+      // ▼ グループ数
+      bicon_count: uniqGroups.length,
+
+      // ▼ A1 / B1 表示
+      bicon_label: uniqLabels.join(' / '),
+
+      // ▼ 通関表示用
+      customs_bicon_notice:
+        uniqGroups.length > 0
+          ? `バイコン: ${uniqLabels.join(' / ')}`
+          : ''
     };
   });
 }
@@ -2193,8 +2364,28 @@ app.post('/api/save-an-snapshot', async (req, res) => {
     }
 
     const containers = Array.isArray(container_lines) ? container_lines : [];
+    let cleanVessel = String(vessel || '').trim();
+    let cleanVoyage = String(voyage || '').trim();
+
+    if (cleanVessel.includes('/')) {
+      const parts = cleanVessel.split('/').map(s => s.trim()).filter(Boolean);
+
+      cleanVessel = parts[0] || '';
+
+      if (!cleanVoyage) {
+        cleanVoyage = parts[1] || '';
+      }
+    }
 
     const chargeList = Array.isArray(charges) ? charges : [];
+
+    console.log('[save-an-snapshot req.body]', {
+  shipment_id,
+  chargesLength: Array.isArray(charges)
+    ? charges.length
+    : null,
+  charges
+});
 
     // 1) snapshot保存
     const snapshotPayload = {
@@ -2204,8 +2395,8 @@ app.post('/api/save-an-snapshot', async (req, res) => {
   shipper_name: shipper_name || null,
   consignee_name: consignee_name || null,
   notify_name: notify_name || null,
-  vessel: vessel || null,
-  voyage: voyage || null,
+  vessel: cleanVessel || null,
+  voyage: cleanVoyage || null,
   pol: pol || null,
   pod: pod || null,
   eta: eta || null,
@@ -2274,8 +2465,9 @@ if (containers.length > 0) {
     sort_no: idx + 1,
     updated_at: new Date().toISOString()
   }));
+const hasChargesKey = Object.prototype.hasOwnProperty.call(req.body || {}, 'charges');
 
-  // 4) charges保存
+if (hasChargesKey && chargeList.length > 0) {
 const { error: deleteChargeError } = await supabase
   .from('shipment_charges')
   .delete()
@@ -2315,6 +2507,7 @@ if (chargeList.length > 0) {
     .insert(chargeRows);
 
   if (insertChargeError) throw insertChargeError;
+}
 }
 
   const { error: insertError } = await supabase
@@ -2784,7 +2977,19 @@ app.get('/api/customs/pending', async (req, res) => {
         vessel,
         etd,
         eta,
-        customs_status
+        customs_status,
+        broker_code,
+        incoterms,
+        inbound_no,
+        currency,
+        declaration_amount,
+        invoice_no,
+        item_name,
+        customs_declared_date,
+        default_customs_declared_date,
+        customs_data,
+        an_url,
+        customer_docs
       `)
       .or('customs_status.is.null,customs_status.eq.')
       .order('created_at', { ascending: false });
@@ -2823,29 +3028,38 @@ app.get('/api/customs/pending', async (req, res) => {
 
 app.post('/api/admin/save-customs-data', async (req, res) => {
   try {
+    console.log('[save-customs-data] body.pickupDate =', req.body?.pickupDate);
+    console.log('[save-customs-data] body =', req.body);
     const shipmentId = String(req.body.shipment_id || '').trim();
     if (!shipmentId) {
       return res.status(400).json({ ok: false, error: 'shipment_id is required' });
     }
+    const requestData = req.body.requestData || req.body || {};
+    const actionType = req.body.actionType || requestData.actionType || 'draft';
+    const pickupDate =
+      req.body?.pickupDate ||
+      req.body?.customs_data?.pickupDate ||
+      '';
 
     const payload = {
-      broker_code: req.body.broker_code || null,
-      incoterms: req.body.incoterms || null,
-      inbound_no: req.body.inbound_no || null,
-      currency: req.body.currency || null,
-      declaration_amount: req.body.declaration_amount || null,
-      invoice_no: req.body.invoice_no || null,
-      item_name: req.body.item_name || null,
-      customs_declared_date: req.body.customs_declared_date || null,
+      broker_code: requestData.brokerId || requestData.broker_code || null,
+      incoterms: requestData.incoterms || null,
+      inbound_no: requestData.inboundNo || requestData.inbound_no || null,
+      currency: requestData.currency || null,
+      declaration_amount: requestData.declarationAmount || requestData.declaration_amount || null,
+      invoice_no: requestData.invoiceNo || requestData.invoice_no || null,
+      item_name: requestData.itemName || requestData.item_name || null,
+      customs_declared_date: requestData.customsDeclaredDate || requestData.customs_declared_date || null,
+
       customs_data: JSON.stringify({
-        descriptions: Array.isArray(req.body.descriptions) ? req.body.descriptions : [],
-        costCover: req.body.costCover || '',
-        documents: Array.isArray(req.body.documents) ? req.body.documents : [],
-        requests: Array.isArray(req.body.requests) ? req.body.requests : [],
-        specialInst: req.body.specialInst || '',
-        workScopes: Array.isArray(req.body.workScopes) ? req.body.workScopes : [],
-        declaredDate: req.body.customs_declared_date || '',
-        pickupDate: req.body.pickupDate || ''
+        descriptions: Array.isArray(requestData.descriptions) ? requestData.descriptions : [],
+        costCover: requestData.costCover || '',
+        documents: Array.isArray(requestData.documents) ? requestData.documents : [],
+        requests: Array.isArray(requestData.requests) ? requestData.requests : [],
+        specialInst: requestData.specialInst || '',
+        workScopes: Array.isArray(requestData.workScopes) ? requestData.workScopes : [],
+        declaredDate: requestData.customsDeclaredDate || requestData.customs_declared_date || '',
+        pickupDate
       })
     };
 
@@ -2891,7 +3105,7 @@ app.post('/api/doc-token', async (req, res) => {
 
     if (error) throw error;
 
-    const baseUrl = 'https://matrix-distances-joke-col.trycloudflare.com';
+    const baseUrl = 'https://character-amazing-ist-exposed.trycloudflare.com';
 
     return res.json({
       ok: true,
@@ -2939,23 +3153,26 @@ app.get('/doc/:docType', async (req, res) => {
       })
       .eq('token', token);
 
-    const payload = await resolveShipmentDocs(shipment_id);
+    let payload;
+let html = '';
 
-    if (docType === 'an') {
-      console.log('[AN payload]', JSON.stringify(payload, null, 2));
-    }
+if (docType === 'delivery') {
+  payload = await resolveDeliveryPayload(shipment_id);
+  console.log('[delivery payload]', JSON.stringify(payload, null, 2));
+  html = buildDeliveryHtmlFromPayload(payload);
 
-   
-    let html = '';
+} else {
+  payload = await resolveShipmentDocs(shipment_id);
 
-    if (docType === 'an') {
-      html = buildANHtmlFromPayload(payload);
-    } else if (docType === 'customs') {
-      console.log('[customs payload]', JSON.stringify(payload, null, 2));
-      html = buildCustomsHtmlFromPayload(payload);
-    } else if (docType === 'delivery') {
-      html = buildDeliveryHtmlFromPayload(payload);
-    }
+  if (docType === 'an') {
+    console.log('[AN payload]', JSON.stringify(payload, null, 2));
+    html = buildANHtmlFromPayload(payload);
+
+  } else if (docType === 'customs') {
+    console.log('[customs payload]', JSON.stringify(payload, null, 2));
+    html = buildCustomsHtmlFromPayload(payload);
+  }
+}
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
@@ -2969,6 +3186,54 @@ ${String(err.stack || err.message || err)}
     </pre>
   `);
 }
+});
+app.get('/doc/:docType/pdf', async (req, res) => {
+  let browser;
+
+  try {
+    const { docType } = req.params;
+
+    const query = new URLSearchParams(req.query).toString();
+
+    const baseUrl =
+      `${req.protocol}://${req.get('host')}`;
+
+    const htmlUrl =
+      `${baseUrl}/doc/${docType}?${query}&pdf=1`;
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    await page.goto(htmlUrl, {
+      waitUntil: 'networkidle0'
+    });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${docType}.pdf"`
+    );
+
+    return res.send(pdfBuffer);
+
+  } catch (err) {
+    console.error('[doc pdf] error:', err);
+    return res.status(500).send(err.message);
+
+  } finally {
+    if (browser) await browser.close();
+  }
 });
 app.get('/api/admin/charge-master', async (req, res) => {
   try {
@@ -2995,6 +3260,1020 @@ app.get('/api/admin/charge-master', async (req, res) => {
     });
   } catch (err) {
     console.error('[charge-master] error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
+app.get('/api/portal/calendar', async (req, res) => {
+  try {
+    const month = String(req.query.month || '').trim(); // 例: 2026-05
+    const basis = String(req.query.basis || 'arrival').trim();
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ ok: false, error: 'month is required. format: YYYY-MM' });
+    }
+    
+    const start = `${month}-01`;
+    const endDate = new Date(`${month}-01T00:00:00`);
+    endDate.setMonth(endDate.getMonth() + 1);
+    const end = endDate.toISOString().slice(0, 10);
+    const dateField =
+      basis === 'departure' ? 'etd' :
+      basis === 'delivery' ? null :
+      'eta';
+
+    let query = supabase
+  .from('shipments')
+  .select(`
+    shipment_id,
+    job_no,
+    status,
+    customs_status,
+    eta,
+    etd,
+    pod,
+    customer_code,
+    broker_code,
+    trucker_code,
+    container_type_1,
+    shipment_lines (
+      delivery_fixed,
+      delivery_fixed_time,
+      delivery_request_date,
+      delivery_request_time,
+      delivery_dest_short,
+      delivery_dest_id,
+      dests (
+        dest_name
+      )
+    )
+  `)
+      if (dateField) {
+  query = query
+    .gte(dateField, start)
+    .lt(dateField, end)
+    .order(dateField, { ascending: true });
+} else if (basis === 'delivery') {
+  query = query.limit(500);
+}
+
+const { data, error } = await query;
+
+if (error) throw error;
+
+const days = {};
+
+(data || []).forEach(s => {
+  const lines = Array.isArray(s.shipment_lines) ? s.shipment_lines : [];
+
+  lines.forEach(line => {
+    const date =
+      basis === 'delivery'
+        ? String(line.delivery_fixed || '').replace(/\//g, '-').slice(0, 10)
+        : basis === 'departure'
+          ? String(s.etd || '').replace(/\//g, '-').slice(0, 10)
+          : String(s.eta || '').replace(/\//g, '-').slice(0, 10);
+
+    if (!date) return;
+    if (date < start || date >= end) return;
+
+    if (!days[date]) {
+      days[date] = { shipments: [] };
+    }
+
+    const extractCore = (code) => {
+      if (!code) return '';
+      return String(code).split('-')[0];
+    };
+
+    const brokerCore = extractCore(s.broker_code);
+    const truckerCore = extractCore(s.trucker_code);
+    const isSamePartner = brokerCore && brokerCore === truckerCore;
+
+    days[date].shipments.push({
+      shipment_id: s.shipment_id,
+      job_no: s.job_no,
+      status: s.status,
+      customs_status: s.customs_status,
+      delivery_fixed: line.delivery_fixed || '',
+      delivery_fixed_time: line.delivery_fixed_time || '',
+      delivery_request_date: line.delivery_request_date || '',
+      delivery_request_time: line.delivery_request_time || '',
+
+      // ▼ カレンダー用
+      delivery_time:
+        basis === 'delivery'
+          ? (line.delivery_fixed_time || '')
+          : '',
+      delivery_area: line.dests?.dest_name ||
+        line.delivery_dest_short ||
+        line.delivery_dest_id ||
+        '',
+      pickup_port: s.pod || '',
+
+      customer_name: s.customer_code || '',
+      container_type: s.container_type_1 || '',
+
+      is_broker_and_trucker: isSamePartner
+    });
+  });
+});
+
+    return res.json({
+      ok: true,
+      month,
+      basis,
+      days
+    });
+  } catch (err) {
+    console.error('[portal calendar] error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
+app.post('/api/trucker/login', async (req, res) => {
+  try {
+    const { token } = req.body || {};
+
+    if (!token) {
+      return res.status(400).json({ ok: false, error: 'token is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type, portal_token')
+      .eq('portal_token', token)
+      .eq('partner_type', 'TRUCKER')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Invalid trucker token'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      trucker: {
+        token,
+        partner_code: data.partner_code,
+        partner_name: data.partner_name
+      }
+    });
+  } catch (err) {
+    console.error('[trucker login] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.get('/api/trucker/calendar', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+    const month = String(req.query.month || '').trim();
+
+    if (!token) return res.status(400).json({ ok: false, error: 'token is required' });
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ ok: false, error: 'month is required. format: YYYY-MM' });
+    }
+
+    const { data: trucker, error: authErr } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type')
+      .eq('portal_token', token)
+      .eq('partner_type', 'TRUCKER')
+      .maybeSingle();
+
+    if (authErr) throw authErr;
+    if (!trucker) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+
+    const start = `${month}-01`;
+    const endDate = new Date(`${month}-01T00:00:00`);
+    endDate.setMonth(endDate.getMonth() + 1);
+    const end = endDate.toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        status,
+        customs_status,
+        eta,
+        etd,
+        pod,
+        customer_code,
+        broker_code,
+        trucker_code,
+        container_type_1,
+        shipment_lines (
+          delivery_fixed,
+          delivery_fixed_time,
+          delivery_request_date,
+          delivery_request_time,
+          delivery_dest_short,
+          delivery_dest_id,
+          dests (
+            dest_name
+          )
+        )
+      `)
+      .eq('trucker_code', trucker.partner_code)
+      .gte('eta', start)
+      .lt('eta', end)
+      .order('eta', { ascending: true });
+
+    if (error) throw error;
+
+    const days = {};
+    
+    // ▼ ここに追加（forEachの上）
+function normalizeDateKey(value) {
+  if (!value) return '';
+
+  const s = String(value).trim();
+
+  // 2026-04-08 / 2026/04/08
+  const m1 = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m1) {
+    return `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
+  }
+
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  return '';
+}
+const { data: slots, error: slotErr } = await supabase
+  .from('truck_slots')
+  .select('*')
+  .eq('trucker_code', trucker.partner_code)
+  .gte('target_date', start)
+  .lt('target_date', end);
+
+if (slotErr) throw slotErr;
+
+    (data || []).forEach(s => {
+      const lines = Array.isArray(s.shipment_lines) && s.shipment_lines.length
+        ? s.shipment_lines
+        : [{}];
+
+      lines.forEach(line => {
+        const rawDate =
+          line.delivery_fixed ||
+          line.delivery_request_date ||
+          s.eta ||
+          s.etd;
+      
+      const date = normalizeDateKey(rawDate);
+
+        if (!date || date < start || date >= end) return;
+
+        if (!rawDate) return;
+        
+        if (!days[date]) days[date] = { shipments: [] };
+
+        days[date].shipments.push({
+          shipment_id: s.shipment_id,
+          job_no: s.job_no,
+          status: s.status,
+          customs_status: s.customs_status,
+          delivery_time: line.delivery_fixed_time || line.delivery_request_time || '',
+          delivery_area: line.dests?.dest_name ||
+            line.delivery_dest_short ||
+            line.delivery_dest_id ||
+            '',
+          pickup_port: s.pod || '',
+          vehicle_type: '',
+          customer_name: s.customer_code || '',
+          container_type: s.container_type_1 || ''
+        });
+      });
+    });
+    (slots || []).forEach(slot => {
+  const date = String(slot.target_date).slice(0, 10);
+
+  if (!days[date]) {
+    days[date] = { shipments: [] };
+  }
+
+  const cap20 = Number(slot.cap_20ft || 0);
+  const cap40 = Number(slot.cap_40ft || 0);
+  const capAny = Number(slot.cap_any || 0);
+
+  days[date] = {
+    ...days[date],
+    capacity: cap20 + cap40 + capAny,
+    cap_20ft: cap20,
+    cap_40ft: cap40,
+    cap_any: capAny,
+    is_public: slot.is_public === true,
+    slot_id: slot.slot_id || null,
+    assigned_count: days[date].shipments.length
+  };
+});
+
+    return res.json({
+      ok: true,
+      month,
+      trucker_name: trucker.partner_name,
+      days
+    });
+  } catch (err) {
+    console.error('[trucker calendar] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.get('/api/trucker/detail', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+    const shipmentId = String(req.query.shipment_id || '').trim();
+
+    if (!token) return res.status(400).json({ ok: false, error: 'token is required' });
+    if (!shipmentId) return res.status(400).json({ ok: false, error: 'shipment_id is required' });
+
+    const { data: trucker, error: authErr } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type')
+      .eq('portal_token', token)
+      .eq('partner_type', 'TRUCKER')
+      .maybeSingle();
+
+    if (authErr) throw authErr;
+    if (!trucker) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+
+    const { data: shipment, error } = await supabase
+      .from('shipments')
+      .select(`
+        *,
+        shipment_lines (*)
+      `)
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!shipment) return res.status(404).json({ ok: false, error: 'Shipment not found' });
+
+    if (String(shipment.trucker_code || '') !== String(trucker.partner_code || '')) {
+      return res.status(403).json({ ok: false, error: 'Access denied' });
+    }
+    const line0 = Array.isArray(shipment.shipment_lines) && shipment.shipment_lines.length
+  ? shipment.shipment_lines[0]
+  : {};
+
+let resolvedDestName = line0.delivery_dest_short || line0.delivery_dest_id || '';
+let resolvedDestAddress = line0.delivery_address_text || '';
+
+if (line0.delivery_dest_id) {
+  const { data: dest } = await supabase
+    .from('dests')
+    .select('dest_name, d_address1, d_address2')
+    .eq('dest_id', line0.delivery_dest_id)
+    .maybeSingle();
+
+  if (dest) {
+    resolvedDestName = dest.dest_name || resolvedDestName;
+    resolvedDestAddress = [dest.d_address1, dest.d_address2].filter(Boolean).join(' ') || resolvedDestAddress;
+  }
+}
+
+shipment.resolved_dest_name = resolvedDestName;
+shipment.resolved_dest_address = resolvedDestAddress;
+
+    return res.json({
+      ok: true,
+      shipment,
+      lines: shipment.shipment_lines || []
+    });
+  } catch (err) {
+    console.error('[trucker detail] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.post('/api/trucker/slots/save', async (req, res) => {
+  try {
+    const {
+      token,
+      target_date,
+      cap_20ft = 0,
+      cap_40ft = 0,
+      cap_any = 0,
+      is_public = false,
+      note = ''
+    } = req.body || {};
+
+    if (!token) return res.status(400).json({ ok: false, error: 'token is required' });
+    if (!target_date) return res.status(400).json({ ok: false, error: 'target_date is required' });
+
+    const { data: trucker, error: authErr } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type')
+      .eq('portal_token', token)
+      .eq('partner_type', 'TRUCKER')
+      .maybeSingle();
+
+    if (authErr) throw authErr;
+    if (!trucker) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+
+    const slotId = `${trucker.partner_code}_${target_date}`;
+
+    const payload = {
+      slot_id: slotId,
+      trucker_code: trucker.partner_code,
+      target_date,
+      cap_20ft: Number(cap_20ft || 0),
+      cap_40ft: Number(cap_40ft || 0),
+      cap_any: Number(cap_any || 0),
+      is_public: !!is_public,
+      note,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('truck_slots')
+      .upsert(payload, { onConflict: 'trucker_code,target_date' })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.json({ ok: true, slot: data });
+  } catch (err) {
+    console.error('[trucker slots save] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.get('/api/trucker/canceled', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+
+    if (!token) {
+      return res.status(400).json({ ok: false, error: 'token is required' });
+    }
+
+    const { data: trucker, error: authErr } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type')
+      .eq('portal_token', token)
+      .eq('partner_type', 'TRUCKER')
+      .maybeSingle();
+
+    if (authErr) throw authErr;
+    if (!trucker) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+
+    const { data, error } = await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        delivery_status,
+        canceled_at,
+        pod,
+        trucker_code,
+        container_type_1,
+        shipment_lines (
+          delivery_dest_short,
+          delivery_fixed,
+          delivery_fixed_time,
+          delivery_request_date,
+          delivery_request_time
+        )
+      `)
+      .eq('trucker_code', trucker.partner_code)
+      .eq('delivery_status', 'CANCELED')
+      .order('canceled_at', { ascending: false });
+
+    if (error) throw error;
+
+    const canceled_list = (data || []).map(s => {
+      const line0 = Array.isArray(s.shipment_lines) && s.shipment_lines.length
+        ? s.shipment_lines[0]
+        : {};
+
+      return {
+        shipment_id: s.shipment_id,
+        job_no: s.job_no,
+        delivery_status: s.delivery_status,
+        canceled_at: s.canceled_at,
+        container_type: s.container_type_1 || '',
+        resolved_pickup_name: s.pod || '',
+        resolved_dest_name: line0.delivery_dest_short || '',
+        delivery_time: line0.delivery_fixed_time || line0.delivery_request_time || ''
+      };
+    });
+
+    return res.json({
+      ok: true,
+      canceled_list
+    });
+  } catch (err) {
+    console.error('[trucker canceled] error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
+app.post('/api/broker/login', async (req, res) => {
+  try {
+    const { token } = req.body || {};
+
+    if (!token) {
+      return res.status(400).json({ ok: false, error: 'token is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type, portal_token')
+      .eq('portal_token', token)
+      .eq('partner_type', 'BROKER')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(401).json({
+        ok: false,
+        error: 'Invalid broker token'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      broker: {
+        token,
+        partner_code: data.partner_code,
+        partner_name: data.partner_name
+      }
+    });
+  } catch (err) {
+    console.error('[broker login] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.get('/api/broker/calendar', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+    const month = String(req.query.month || '').trim();
+
+    if (!token) return res.status(400).json({ ok: false, error: 'token is required' });
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ ok: false, error: 'month is required. format: YYYY-MM' });
+    }
+
+    const { data: broker, error: authErr } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type')
+      .eq('portal_token', token)
+      .eq('partner_type', 'BROKER')
+      .maybeSingle();
+
+    if (authErr) throw authErr;
+    if (!broker) return res.status(401).json({ ok: false, error: 'Unauthorized' });
+
+    const start = `${month}-01`;
+    const endDate = new Date(`${month}-01T00:00:00`);
+    endDate.setMonth(endDate.getMonth() + 1);
+    const end = endDate.toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        status,
+        customs_status,
+        eta,
+        etd,
+        pod,
+        customer_code,
+        broker_code,
+        trucker_code,
+        container_type_1,
+        shipment_lines (
+          delivery_fixed,
+          delivery_fixed_time,
+          delivery_request_date,
+          delivery_request_time,
+          delivery_dest_short,
+          delivery_dest_id,
+          dests (
+            dest_name
+          )
+        )
+      `)
+      .eq('broker_code', broker.partner_code)
+      .gte('eta', start)
+      .lt('eta', end)
+      .order('eta', { ascending: true });
+
+    if (error) throw error;
+
+    const days = {};
+    
+    // ▼ ここに追加（forEachの上）
+function normalizeDateKey(value) {
+  if (!value) return '';
+
+  const s = String(value).trim();
+
+  // 2026-04-08 / 2026/04/08
+  const m1 = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m1) {
+    return `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
+  }
+
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  return '';
+}
+    (data || []).forEach(s => {
+      const lines = Array.isArray(s.shipment_lines) && s.shipment_lines.length
+        ? s.shipment_lines
+        : [{}];
+
+      lines.forEach(line => {
+        const rawDate =
+          line.delivery_fixed ||
+          line.delivery_request_date ||
+          s.eta ||
+          s.etd;
+      
+      const date = normalizeDateKey(rawDate);
+
+        if (!date || date < start || date >= end) return;
+
+        if (!rawDate) return;
+        
+        if (!days[date]) days[date] = { shipments: [] };
+
+        days[date].shipments.push({
+          shipment_id: s.shipment_id,
+          job_no: s.job_no,
+          status: s.status,
+          customs_status: s.customs_status,
+          delivery_time: line.delivery_fixed_time || line.delivery_request_time || '',
+          delivery_area: line.dests?.dest_name ||
+            line.delivery_dest_short ||
+            line.delivery_dest_id ||
+            '',
+          pickup_port: s.pod || '',
+          vehicle_type: '',
+          customer_name: s.customer_code || '',
+          container_type: s.container_type_1 || ''
+        });
+      });
+    });
+
+    return res.json({
+      ok: true,
+      month,
+      broker_name: broker.partner_name,
+      days
+    });
+  } catch (err) {
+    console.error('[broker calendar] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.get('/api/broker/detail', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+    const shipmentId = String(req.query.shipment_id || '').trim();
+
+    if (!token) {
+      return res.status(400).json({ ok: false, error: 'token is required' });
+    }
+
+    if (!shipmentId) {
+      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
+    }
+
+    const { data: broker, error: authErr } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, partner_type')
+      .eq('portal_token', token)
+      .eq('partner_type', 'BROKER')
+      .maybeSingle();
+
+    if (authErr) throw authErr;
+    if (!broker) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+
+    const { data: shipment, error } = await supabase
+      .from('shipments')
+      .select(`
+        *,
+        shipment_lines (*)
+      `)
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!shipment) {
+      return res.status(404).json({ ok: false, error: 'Shipment not found' });
+    }
+
+    if (String(shipment.broker_code || '') !== String(broker.partner_code || '')) {
+      return res.status(403).json({ ok: false, error: 'Access denied' });
+    }
+
+    return res.json({
+      ok: true,
+      broker_name: broker.partner_name,
+      shipment,
+      lines: shipment.shipment_lines || []
+    });
+  } catch (err) {
+    console.error('[broker detail] error:', err);
+    return res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.post('/api/admin/customs/request', async (req, res) => {
+  try {
+    const { requestData, actionType = 'preview' } = req.body || {};
+
+    if (!requestData?.shipmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'shipmentId is required'
+      });
+    }
+
+    const shipmentId = requestData.shipmentId;
+
+    const customsJsonData = {
+      descriptions: requestData.descriptions || [],
+      costCover: requestData.costCover || '',
+      documents: requestData.documents || [],
+      requests: requestData.requests || [],
+      specialInst: requestData.specialInst || '',
+      workScopes: requestData.workScopes || [],
+      customsDeclaredDate: requestData.customsDeclaredDate || '',
+      declaredDate: requestData.customsDeclaredDate || '',
+      pickupDate: requestData.pickupDate || '',
+      invoiceNo: requestData.invoiceNo || '',
+      itemName: requestData.itemName || '',
+      declarationAmount: requestData.declarationAmount || '',
+      inboundNo: requestData.inboundNo || '',
+      currency: requestData.currency || '',
+      incoterms: requestData.incoterms || '',
+      brokerCode: requestData.brokerId || '',
+      line0: requestData.line0 || {}
+    };
+
+    const updatePayload = {
+      broker_code: requestData.brokerId || null,
+      customs_status: actionType === 'submit' ? 'DOCS_CHECK' : undefined,
+      customs_data: JSON.stringify(customsJsonData),
+      inbound_no: requestData.inboundNo || null,
+      customs_request_url: requestData.customsUrl || null,
+      an_url: requestData.anUrl || null,
+      updated_at: new Date().toISOString()
+    };
+
+    Object.keys(updatePayload).forEach(k => {
+      if (updatePayload[k] === undefined) delete updatePayload[k];
+    });
+
+    const { data: shipment, error } = await supabase
+      .from('shipments')
+      .update(updatePayload)
+      .eq('shipment_id', shipmentId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!shipment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shipment not found'
+      });
+    }
+
+    if (actionType === 'draft') {
+      return res.json({
+        success: true,
+        mode: 'draft',
+        message: '一時保存が完了しました。'
+      });
+    }
+
+    if (actionType === 'preview') {
+      return res.json({
+        success: true,
+        mode: 'html_preview',
+        message: '通関依頼書HTMLプレビュー用データを保存しました。'
+      });
+    }
+
+    const { data: broker } = await supabase
+      .from('partners')
+      .select('partner_code, partner_name, email, contact_email')
+      .eq('partner_code', requestData.brokerId)
+      .maybeSingle();
+
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('customer_code, customer_name')
+      .eq('customer_code', shipment.customer_code)
+      .maybeSingle();
+
+    return res.json({
+      success: true,
+      mode: 'submit_prepare_drive',
+      message: 'DB保存が完了しました。Drive保存処理へ進みます。',
+      anUrl: requestData.anUrl || shipment.an_url || '',
+      customsUrl: requestData.customsUrl || shipment.customs_request_url || '',
+      drivePayload: {
+        shipmentId,
+        jobNo: requestData.jobNo || shipment.job_no || shipmentId,
+        brokerCode: requestData.brokerId || shipment.broker_code || '',
+        brokerName: broker?.partner_name || '通関業者',
+        brokerEmail: broker?.email || broker?.contact_email || '',
+        customerName: customer?.customer_name || shipment.customer_code || '',
+        customerCode: shipment.customer_code || '',
+        anUrl: requestData.anUrl || shipment.an_url || '',
+        customsUrl: requestData.customsUrl || shipment.customs_request_url || '',
+        files: requestData.files || []
+      }
+    });
+
+  } catch (err) {
+    console.error('[admin customs request] error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || String(err)
+    });
+  }
+});
+app.post('/api/admin/customs/drive-result', async (req, res) => {
+  try {
+    const { shipment_id, driveResult } = req.body || {};
+
+    if (!shipment_id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'shipment_id is required'
+      });
+    }
+
+    if (!driveResult || driveResult.ok === false || driveResult.success === false) {
+      return res.status(400).json({
+        ok: false,
+        error: driveResult?.message || driveResult?.error || 'Drive package failed'
+      });
+    }
+
+    const updatePayload = {
+      customs_document_zip_url: driveResult.zipUrl || null,
+      customs_document_folder_url: driveResult.folderUrl || null,
+      customs_saved_file_urls: driveResult.savedFileUrls || {},
+      customs_mail_sent: driveResult.mailSent === true,
+      customs_mail_error: driveResult.mailError || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('shipments')
+      .update(updatePayload)
+      .eq('shipment_id', shipment_id)
+      .select('shipment_id, customs_document_zip_url, customs_document_folder_url')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return res.json({
+      ok: true,
+      shipment: data
+    });
+
+  } catch (err) {
+    console.error('[admin customs drive-result] error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
+app.post('/api/customer/upload-docs', async (req, res) => {
+  try {
+    const { shipment_id, files } = req.body || {};
+
+    if (!shipment_id) throw new Error('shipment_id is required');
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new Error('files is required');
+    }
+
+    const { data: shipment, error: sErr } = await supabase
+      .from('shipments')
+      .select('shipment_id, job_no, customer_docs')
+      .eq('shipment_id', shipment_id)
+      .single();
+
+    if (sErr) throw sErr;
+    if (!shipment) throw new Error('shipment not found');
+
+    let existingDocs = {};
+
+    if (typeof shipment.customer_docs === 'string') {
+      try {
+        existingDocs = JSON.parse(shipment.customer_docs || '{}');
+      } catch {
+        existingDocs = {};
+      }
+    } else if (shipment.customer_docs && typeof shipment.customer_docs === 'object') {
+      existingDocs = shipment.customer_docs;
+    }
+
+    const savedDocs = {};
+
+    for (const f of files) {
+      const type = f.type;
+      const url = f.url;
+
+      if (!type || !url) continue;
+
+      savedDocs[type] = url;
+    }
+
+    const mergedDocs = {
+      ...existingDocs,
+      ...savedDocs
+    };
+
+    const { error: uErr } = await supabase
+      .from('shipments')
+      .update({
+        customer_docs: JSON.stringify(mergedDocs)
+      })
+      .eq('shipment_id', shipment_id);
+
+    if (uErr) throw uErr;
+
+    return res.json({
+      ok: true,
+      customer_docs: mergedDocs
+    });
+
+  } catch (err) {
+    console.error('[customer upload-docs] error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
+
+app.get('/api/customer/docs-by-line', async (req, res) => {
+  try {
+    const lineId = req.query.line_id;
+    if (!lineId) throw new Error('line_id is required');
+
+    const { data: line, error: lErr } = await supabase
+      .from('shipment_lines')
+      .select('shipment_id')
+      .eq('line_id', lineId)
+      .single();
+
+    if (lErr) throw lErr;
+    if (!line?.shipment_id) throw new Error('shipment_id not found');
+
+    const { data: shipment, error: sErr } = await supabase
+      .from('shipments')
+      .select('customer_docs')
+      .eq('shipment_id', line.shipment_id)
+      .single();
+
+    if (sErr) throw sErr;
+
+    return res.json({
+      ok: true,
+      customer_docs: shipment?.customer_docs || {}
+    });
+
+  } catch (err) {
+    console.error('[docs-by-line] error:', err);
     return res.status(500).json({
       ok: false,
       error: err.message || String(err)

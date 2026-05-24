@@ -34,6 +34,8 @@ const supplier = await fetchSupplier(shipment.supplier_id);
 
   return {
   shipment: buildShipmentBlock(shipment),
+  labels,
+
   party: {
     customer,
     supplier,
@@ -348,6 +350,7 @@ function mapCustomsData(cd) {
 async function buildLabels({ shipment, customsData, anContainers }) {
   const incotermsCode = customsData.incoterms || shipment.incoterms || '';
   const currencyCode = customsData.currency || shipment.currency || '';
+  const carrierCode = shipment.carrier_id || shipment.carrier_code || '';
 
   const documentCodes = Array.isArray(customsData.documents)
     ? customsData.documents
@@ -366,6 +369,8 @@ async function buildLabels({ shipment, customsData, anContainers }) {
   return {
     incoterms_label: await getMasterLabel('INCOTERMS', incotermsCode),
     currency_label: await getMasterLabel('CURRENCY', currencyCode),
+    carrier_label: await getMasterLabel('CARRIER', shipment.carrier_id),
+
     documents_labels: await getMasterLabels('CUSTOMS_DOX', documentCodes),
     requests_labels: await getMasterLabels('REQUEST_BROKER', requestCodes),
     cost_cover_labels: await getMasterLabels('COST_COVER', costCoverCodes),
