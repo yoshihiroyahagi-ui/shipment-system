@@ -3105,7 +3105,7 @@ app.post('/api/doc-token', async (req, res) => {
 
     if (error) throw error;
 
-    const baseUrl = 'https://character-amazing-ist-exposed.trycloudflare.com';
+    const baseUrl = 'https://portal.bizlabo-tokyo.com';
 
     return res.json({
       ok: true,
