@@ -159,6 +159,19 @@ if (shipment.customer_code) {
   customer = c;
 }
 
+let delivery = {};
+
+try {
+  if (typeof shipment.delivery_data === 'string') {
+    delivery = shipment.delivery_data ? JSON.parse(shipment.delivery_data) : {};
+  } else if (shipment.delivery_data && typeof shipment.delivery_data === 'object') {
+    delivery = shipment.delivery_data;
+  }
+} catch (e) {
+  console.warn('[deliveryResolver] delivery_data parse failed:', e);
+  delivery = {};
+}
+
 let pickupPlace = '';
 
 if (shipment.cargo_pickup_location_id) {
@@ -204,6 +217,7 @@ if (shipment.cargo_pickup_location_id) {
   containers: normalizedContainers,
   trucker: trucker || {},
   pickup_place: pickupPlace,
+  delivery,
   request_date: new Date().toISOString().slice(0, 10)
 };
 }

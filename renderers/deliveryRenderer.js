@@ -19,9 +19,12 @@ export function buildDeliveryHtmlFromPayload(data = {}) {
 
   return s;
 };
+  
+  const delivery = data.delivery || {};
   const s = data.shipment || {};
   const lines = data.lines || [];
   const normalizedLines = [];
+
 
 for (const line of (lines || [])) {
 
@@ -434,8 +437,11 @@ const groupedLines = Array.from(groupedMap.values());
 </div>
   <div class="section">
     <div class="section-head">備考・注意事項</div>
-    <div class="note-box">${esc(s.delivery_note || s.customer_comment || s.remarks || '')}</div>
-  </div>
+    <div class="note-box">${esc([
+    ...(Array.isArray(delivery.remarks) ? delivery.remarks : []),
+    s.delivery_note || '',
+    s.customer_comment || ''
+    ].filter(Boolean).join('\n'))}</div>
 
   <div class="section small">
     株式会社ビジネスラボ / operation@bizlabo-tokyo.co.jp
