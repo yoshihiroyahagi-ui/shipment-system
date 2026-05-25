@@ -4345,3 +4345,63 @@ app.post('/api/admin/delivery/request', async (req, res) => {
     });
   }
 });
+
+app.get('/api/admin/dashboard-data', async (req, res) => {
+  try {
+    const { data: rows, error } = await supabase
+      .from('shipments')
+      .select('shipment_id,status,vessel,voyage,pol,pod,etd,eta');
+
+    if (error) throw error;
+
+    const statusCounts = {};
+    const groups = {};
+
+    (rows || []).forEach(s => {
+      const st = s.status || 'Unknown';
+      statusCounts[st] = (statusCounts[st] || 0) + 1;
+
+      if (s.status === '配達済み' || s.status === 'キャンセル') return;
+
+      const key = [
+        s.vessel || '',
+        s.voyage || '',
+        s.pol || '',
+        s.pod || ''
+      ].join('||');
+
+      if (!groups[key]) {
+        groups[key] = {
+          vessel: s.vessel || '',
+          voyage: s.voyage || '',
+          pol: s.pol || '',
+          pod: s.pod || '',
+          etd: s.etd || '',
+          eta: s.eta || '',
+          count: 0,
+          ids: []
+        };
+      }
+
+      groups[key].count++;
+      groups[key].ids.push(s.shipment_id);
+    });
+
+    const vesselGroups = Object.values(groups).sort((a, b) =>
+      String(a.eta || '9999').localeCompare(String(b.eta || '9999'))
+    );
+
+    return res.json({
+      ok: true,
+      statusCounts,
+      vesselGroups
+    });
+
+  } catch (err) {
+    console.error('[dashboard-data] error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
