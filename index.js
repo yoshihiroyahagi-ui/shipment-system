@@ -4280,3 +4280,68 @@ app.get('/api/customer/docs-by-line', async (req, res) => {
     });
   }
 });
+app.post('/api/admin/delivery/request', async (req, res) => {
+  try {
+    const { requestData, actionType = 'draft' } = req.body || {};
+
+    if (!requestData?.shipmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'shipmentId is required'
+      });
+    }
+
+    const shipmentId = requestData.shipmentId;
+
+    const deliveryJsonData = {
+      truckerId: requestData.truckerId || '',
+      remarks: Array.isArray(requestData.remarks) ? requestData.remarks : [],
+      files: Array.isArray(requestData.files) ? requestData.files.map(f => ({
+        type: f.type,
+        name: f.name,
+        mimeType: f.mimeType
+      })) : [],
+      actionType,
+      savedAt: new Date().toISOString()
+    };
+
+    const updatePayload = {
+      trucker_code: requestData.truckerId || null,
+      delivery_data: JSON.stringify(deliveryJsonData),
+      updated_at: new Date().toISOString()
+    };
+
+    if (actionType === 'submit') {
+      updatePayload.status = 'DELIVERY_REQUESTED';
+    }
+
+    const { data: shipment, error } = await supabase
+      .from('shipments')
+      .update(updatePayload)
+      .eq('shipment_id', shipmentId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!shipment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shipment not found'
+      });
+    }
+
+    return res.json({
+      success: true,
+      mode: actionType,
+      message: '配送依頼データを保存しました。'
+    });
+
+  } catch (err) {
+    console.error('[admin delivery request] error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || String(err)
+    });
+  }
+});

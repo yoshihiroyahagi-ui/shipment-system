@@ -372,8 +372,8 @@ const groupedLines = Array.from(groupedMap.values());
       <tbody>
         ${groupedLines.map(line => `
   <tr>
-    <td>${esc(line.delivery_request_date || line.delivery_plan_date || '')}</td>
-    <td>${esc(line.delivery_request_time || line.delivery_plan_time || '')}</td>
+    <td>${esc(fmtDate(line.delivery_fixed || line.delivery_request_date || line.delivery_plan_date || ''))}</td>
+    <td>${esc(line.delivery_fixed_time || line.delivery_request_time || line.delivery_plan_time || '')}</td>
     <td class="small">${esc([
       line.delivery_dest_name || line.dest_name || '',
       line.delivery_address1 || line.address_official || '',
