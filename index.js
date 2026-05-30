@@ -33,6 +33,155 @@ app.use('/api/invoice', invoiceRouter);
 
 app.use(express.json({ limit: '20mb' }));
 
+// =====================================================
+// Invoice Helpers
+// =====================================================
+
+function toNumber(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = Number(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function calcTax(net, taxType, taxRate = 0.1) {
+  const amount = toNumber(net);
+
+  if (!amount) {
+    return { net: 0, tax: 0, gross: 0 };
+  }
+
+  if (taxType === 'taxable') {
+    const tax = Math.round(amount * taxRate);
+    return {
+      net: amount,
+      tax,
+      gross: amount + tax
+    };
+  }
+
+  return {
+    net: amount,
+    tax: 0,
+    gross: amount
+  };
+}
+
+function calcProfitRate(salesNet, profitNet) {
+  const s = toNumber(salesNet);
+  if (!s) return null;
+  return Math.round((toNumber(profitNet) / s) * 10000) / 100;
+}
+
+function getBillingMonthFromDate(d) {
+  if (!d) return null;
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+}
+
+app.post('/api/invoice/create-from-shipment', async (req, res) => {
+  try {
+    const { shipment_id } = req.body || {};
+
+    if (!shipment_id) {
+      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
+    }
+
+    // 既に請求書があるか確認
+    const { data: existing, error: exErr } = await supabase
+      .from('invoice_headers')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .neq('status', 'cancelled')
+      .maybeSingle();
+
+    if (exErr) throw exErr;
+
+    if (existing) {
+      return res.json({
+        ok: true,
+        already_exists: true,
+        invoice_id: existing.invoice_id,
+        header: existing
+      });
+    }
+
+    // shipment本体取得
+    const { data: s, error: sErr } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .single();
+
+    if (sErr) throw sErr;
+
+    // AN snapshotがあれば優先
+    const { data: an, error: anErr } = await supabase
+      .from('shipment_an_snapshot')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .maybeSingle();
+
+    if (anErr) {
+      console.warn('[invoice/create-from-shipment] an snapshot not loaded:', anErr.message);
+    }
+
+    const eta = an?.eta || s.eta || s.eta_date || null;
+    const billingMonth =
+      s.billing_month ||
+      s.planned_billing_month ||
+      getBillingMonthFromDate(eta) ||
+      getBillingMonthFromDate(new Date());
+
+    const headerPayload = {
+      source_type: 'SHIPMENT',
+      shipment_id,
+
+      customer_id: s.customer_id || null,
+      customer_name: s.customer_name || s.client_name || s.consignee_name || an?.consignee_name || null,
+
+      invoice_no: null,
+      billing_month: billingMonth,
+      invoice_date: new Date().toISOString().slice(0, 10),
+      due_date: null,
+
+      job_no: s.job_no || s.control_no || null,
+      hbl_no: an?.hbl_no || s.hbl_no || null,
+      mbl_no: an?.mbl_no || s.mbl_no || null,
+      vessel: an?.vessel || s.vessel || null,
+      voyage: an?.voyage || s.voyage || null,
+      pol: an?.pol || s.pol || null,
+      pod: an?.pod || s.pod || null,
+      eta,
+
+      cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
+      pcs_total: an?.pcs_total || s.pcs_total || s.total_pcs || null,
+      gw_total: an?.gw_total || s.gw_total || s.total_gw || null,
+      cbm_total: an?.cbm_total || s.cbm_total || s.total_cbm || null,
+
+      status: 'draft'
+    };
+
+    const { data: header, error: hErr } = await supabase
+      .from('invoice_headers')
+      .insert(headerPayload)
+      .select('*')
+      .single();
+
+    if (hErr) throw hErr;
+
+    res.json({
+      ok: true,
+      already_exists: false,
+      invoice_id: header.invoice_id,
+      header
+    });
+  } catch (err) {
+    console.error('[invoice/create-from-shipment] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+
 // CSVファイルをメモリ上で受け取る設定
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -332,7 +481,371 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 )
+// =====================================================
+// Invoice APIs
+// =====================================================
+app.get('/api/invoice/list', async (req, res) => {
+  try {
+    const billingMonth = req.query.billing_month || null;
+    const customerId = req.query.customer_id || null;
+    const status = req.query.status || null;
 
+    let q = supabase
+      .from('invoice_headers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (billingMonth) q = q.eq('billing_month', billingMonth);
+    if (customerId) q = q.eq('customer_id', customerId);
+    if (status) q = q.eq('status', status);
+
+    const { data, error } = await q;
+
+    if (error) throw error;
+
+    res.json({ ok: true, rows: data || [] });
+  } catch (err) {
+    console.error('[invoice/list] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.get('/api/invoice/detail', async (req, res) => {
+  try {
+    const invoiceId = req.query.invoice_id;
+
+    if (!invoiceId) {
+      return res.status(400).json({ ok: false, error: 'invoice_id is required' });
+    }
+
+    const { data: header, error: hErr } = await supabase
+      .from('invoice_headers')
+      .select('*')
+      .eq('invoice_id', invoiceId)
+      .single();
+
+    if (hErr) throw hErr;
+
+    const { data: lines, error: lErr } = await supabase
+      .from('invoice_lines')
+      .select('*')
+      .eq('invoice_id', invoiceId)
+      .order('line_no', { ascending: true });
+
+    if (lErr) throw lErr;
+
+    const { data: payables, error: pErr } = await supabase
+      .from('payable_lines')
+      .select('*')
+      .eq('invoice_id', invoiceId)
+      .order('created_at', { ascending: true });
+
+    if (pErr) throw pErr;
+
+    res.json({
+      ok: true,
+      header,
+      lines: lines || [],
+      payables: payables || []
+    });
+  } catch (err) {
+    console.error('[invoice/detail] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.post('/api/invoice/create-blank', async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    const payload = {
+      source_type: 'BLANK',
+      customer_id: body.customer_id || null,
+      customer_name: body.customer_name || null,
+      invoice_no: body.invoice_no || null,
+      billing_month: body.billing_month || getBillingMonthFromDate(new Date()),
+      invoice_date: body.invoice_date || new Date().toISOString().slice(0, 10),
+      due_date: body.due_date || null,
+      status: 'draft',
+      remarks: body.remarks || null
+    };
+
+    const { data, error } = await supabase
+      .from('invoice_headers')
+      .insert(payload)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+
+    res.json({ ok: true, invoice_id: data.invoice_id, header: data });
+  } catch (err) {
+    console.error('[invoice/create-blank] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.post('/api/invoice/create-from-shipment', async (req, res) => {
+  try {
+    const { shipment_id } = req.body || {};
+
+    if (!shipment_id) {
+      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
+    }
+
+    // 既に請求書があるか確認
+    const { data: existing, error: exErr } = await supabase
+      .from('invoice_headers')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .neq('status', 'cancelled')
+      .maybeSingle();
+
+    if (exErr) throw exErr;
+
+    if (existing) {
+      return res.json({
+        ok: true,
+        already_exists: true,
+        invoice_id: existing.invoice_id,
+        header: existing
+      });
+    }
+
+    // shipment本体取得
+    const { data: s, error: sErr } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .single();
+
+    if (sErr) throw sErr;
+
+    // AN snapshotがあれば優先
+    const { data: an, error: anErr } = await supabase
+      .from('shipment_an_snapshot')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .maybeSingle();
+
+    if (anErr) {
+      console.warn('[invoice/create-from-shipment] an snapshot not loaded:', anErr.message);
+    }
+
+    const eta = an?.eta || s.eta || s.eta_date || null;
+    const billingMonth =
+      s.billing_month ||
+      s.planned_billing_month ||
+      getBillingMonthFromDate(eta) ||
+      getBillingMonthFromDate(new Date());
+
+    const headerPayload = {
+      source_type: 'SHIPMENT',
+      shipment_id,
+
+      customer_id: s.customer_id || null,
+      customer_name: s.customer_name || s.client_name || s.consignee_name || an?.consignee_name || null,
+
+      invoice_no: null,
+      billing_month: billingMonth,
+      invoice_date: new Date().toISOString().slice(0, 10),
+      due_date: null,
+
+      job_no: s.job_no || s.control_no || null,
+      hbl_no: an?.hbl_no || s.hbl_no || null,
+      mbl_no: an?.mbl_no || s.mbl_no || null,
+      vessel: an?.vessel || s.vessel || null,
+      voyage: an?.voyage || s.voyage || null,
+      pol: an?.pol || s.pol || null,
+      pod: an?.pod || s.pod || null,
+      eta,
+
+      cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
+      pcs_total: an?.pcs_total || s.pcs_total || s.total_pcs || null,
+      gw_total: an?.gw_total || s.gw_total || s.total_gw || null,
+      cbm_total: an?.cbm_total || s.cbm_total || s.total_cbm || null,
+
+      status: 'draft'
+    };
+
+    const { data: header, error: hErr } = await supabase
+      .from('invoice_headers')
+      .insert(headerPayload)
+      .select('*')
+      .single();
+
+    if (hErr) throw hErr;
+
+    res.json({
+      ok: true,
+      already_exists: false,
+      invoice_id: header.invoice_id,
+      header
+    });
+  } catch (err) {
+    console.error('[invoice/create-from-shipment] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
+app.post('/api/invoice/save', async (req, res) => {
+  try {
+    const {
+      invoice_id,
+      header = {},
+      lines = [],
+      payables = []
+    } = req.body || {};
+
+    if (!invoice_id) {
+      return res.status(400).json({ ok: false, error: 'invoice_id is required' });
+    }
+
+    const normalizedLines = lines.map((line, idx) => {
+      const billingTaxType = line.billing_tax_type || 'taxable';
+      const billingTaxRate = billingTaxType === 'taxable'
+        ? toNumber(line.billing_tax_rate || 0.1)
+        : 0;
+
+      const c = calcTax(line.billing_amount_net, billingTaxType, billingTaxRate);
+
+      return {
+        invoice_id,
+        line_no: line.line_no || idx + 1,
+        item_name: line.item_name || '未設定',
+        description: line.description || null,
+        show_on_invoice: line.show_on_invoice !== false,
+
+        billing_amount_net: c.net,
+        billing_tax_type: billingTaxType,
+        billing_tax_rate: billingTaxRate,
+        billing_tax_amount: c.tax,
+        billing_amount_gross: c.gross,
+
+        memo: line.memo || null
+      };
+    });
+
+    // 既存明細を消して再作成：MVPではこれが一番安全
+    const { error: delPayErr } = await supabase
+      .from('payable_lines')
+      .delete()
+      .eq('invoice_id', invoice_id);
+
+    if (delPayErr) throw delPayErr;
+
+    const { error: delLineErr } = await supabase
+      .from('invoice_lines')
+      .delete()
+      .eq('invoice_id', invoice_id);
+
+    if (delLineErr) throw delLineErr;
+
+    let insertedLines = [];
+
+    if (normalizedLines.length) {
+      const { data: lData, error: insLineErr } = await supabase
+        .from('invoice_lines')
+        .insert(normalizedLines)
+        .select('*');
+
+      if (insLineErr) throw insLineErr;
+      insertedLines = lData || [];
+    }
+
+    const lineNoToId = new Map(
+      insertedLines.map(l => [Number(l.line_no), l.invoice_line_id])
+    );
+
+    const normalizedPayables = payables.map((p) => {
+      const payableTaxType = p.payable_tax_type || 'taxable';
+      const payableTaxRate = payableTaxType === 'taxable'
+        ? toNumber(p.payable_tax_rate || 0.1)
+        : 0;
+
+      const c = calcTax(p.payable_amount_net, payableTaxType, payableTaxRate);
+
+      return {
+        invoice_id,
+        invoice_line_id:
+          p.invoice_line_id ||
+          lineNoToId.get(Number(p.line_no)) ||
+          null,
+
+        vendor_id: p.vendor_id || null,
+        vendor_name: p.vendor_name || null,
+        payable_item_name: p.payable_item_name || p.item_name || null,
+
+        payable_amount_net: c.net,
+        payable_tax_type: payableTaxType,
+        payable_tax_rate: payableTaxRate,
+        payable_tax_amount: c.tax,
+        payable_amount_gross: c.gross,
+
+        status: p.status || 'planned',
+        payment_due_date: p.payment_due_date || null,
+        memo: p.memo || null
+      };
+    });
+
+    let insertedPayables = [];
+
+    if (normalizedPayables.length) {
+      const { data: pData, error: insPayErr } = await supabase
+        .from('payable_lines')
+        .insert(normalizedPayables)
+        .select('*');
+
+      if (insPayErr) throw insPayErr;
+      insertedPayables = pData || [];
+    }
+
+    const salesNetTotal = insertedLines.reduce((sum, l) => sum + toNumber(l.billing_amount_net), 0);
+    const salesTaxTotal = insertedLines.reduce((sum, l) => sum + toNumber(l.billing_tax_amount), 0);
+    const salesGrossTotal = insertedLines.reduce((sum, l) => sum + toNumber(l.billing_amount_gross), 0);
+
+    const payableNetTotal = insertedPayables.reduce((sum, p) => sum + toNumber(p.payable_amount_net), 0);
+    const payableTaxTotal = insertedPayables.reduce((sum, p) => sum + toNumber(p.payable_tax_amount), 0);
+    const payableGrossTotal = insertedPayables.reduce((sum, p) => sum + toNumber(p.payable_amount_gross), 0);
+
+    const grossProfitNet = salesNetTotal - payableNetTotal;
+
+    const headerUpdate = {
+      ...header,
+
+      sales_net_total: salesNetTotal,
+      sales_tax_total: salesTaxTotal,
+      sales_gross_total: salesGrossTotal,
+
+      payable_net_total: payableNetTotal,
+      payable_tax_total: payableTaxTotal,
+      payable_gross_total: payableGrossTotal,
+
+      gross_profit_net: grossProfitNet,
+      gross_profit_rate: calcProfitRate(salesNetTotal, grossProfitNet),
+
+      updated_at: new Date().toISOString()
+    };
+
+    delete headerUpdate.invoice_id;
+    delete headerUpdate.created_at;
+
+    const { data: updatedHeader, error: updErr } = await supabase
+      .from('invoice_headers')
+      .update(headerUpdate)
+      .eq('invoice_id', invoice_id)
+      .select('*')
+      .single();
+
+    if (updErr) throw updErr;
+
+    res.json({
+      ok: true,
+      header: updatedHeader,
+      lines: insertedLines,
+      payables: insertedPayables
+    });
+  } catch (err) {
+    console.error('[invoice/save] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
 // --- session store (今日はメモリでOK) ---
 const sessions = new Map()
 const SESSION_TTL_MS = 1000 * 60 * 60 * 16 // 6時間
@@ -920,9 +1433,6 @@ app.post('/api/update-line', async (req, res) => {
   }
 })
 
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`)
-})
 app.get('/api/master-codes', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -4406,3 +4916,74 @@ app.get('/api/admin/dashboard-data', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/unbilled-shipments', async (req, res) => {
+  try {
+
+    // 請求済 shipment_id取得
+    const { data: invoices, error: invErr } = await supabase
+      .from('invoice_headers')
+      .select('shipment_id')
+      .neq('status', 'cancelled');
+
+    if (invErr) throw invErr;
+
+    const billedShipmentIds = (invoices || [])
+      .map(r => r.shipment_id)
+      .filter(Boolean);
+
+    let shipmentQuery = supabase
+      .from('shipments')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (billedShipmentIds.length > 0) {
+      shipmentQuery = shipmentQuery.not(
+        'shipment_id',
+        'in',
+        `(${billedShipmentIds.join(',')})`
+      );
+    }
+
+    const { data: shipments, error: shipErr } = await shipmentQuery;
+
+    if (shipErr) throw shipErr;
+
+    const rows = (shipments || []).map(s => ({
+      shipment_id: s.shipment_id,
+      job_no: s.job_no || null,
+      customer_id: s.customer_id || null,
+      customer_name:
+        s.customer_name ||
+        s.client_name ||
+        null,
+
+      eta:
+        s.eta ||
+        s.eta_date ||
+        null,
+
+      billing_month:
+        s.billing_month ||
+        s.planned_billing_month ||
+        null,
+
+      status: 'unbilled'
+    }));
+
+    res.json({
+      ok: true,
+      rows
+    });
+
+  } catch (err) {
+    console.error('[invoice/unbilled-shipments] error:', err);
+
+    res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`)
+})
