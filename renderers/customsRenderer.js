@@ -96,39 +96,59 @@ const currencyMap = {
   CR08: 'GBP'
 };
 
-  const containers = Array.isArray(an.containers) ? an.containers : [];
+  let containers = [];
 
-  const unitRow = containers.find(c =>
-  c.pkg_unit ||
-  c.package_unit ||
-  c.unit
-) || {};
+if (Array.isArray(an.containers)) {
+  containers = an.containers;
+} else if (Array.isArray(an.container_lines_json)) {
+  containers = an.container_lines_json;
+} else if (typeof an.container_lines_json === 'string') {
+  try {
+    containers = JSON.parse(an.container_lines_json);
+  } catch (e) {
+    containers = [];
+  }
+}
+
+function toNumLoose(v) {
+  const m = String(v || '').replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+}
+
+function getPkgUnit(row = {}) {
+  return (
+    row.pkg_unit ||
+    row.package_unit ||
+    row.packages_unit ||
+    row.unit ||
+    row.packing_unit ||
+    ''
+  );
+}
+
+const unitRow = containers.find(c => getPkgUnit(c)) || {};
 
 const totalPkgs =
-  Number(totals.pkgs || 0) ||
+  toNumLoose(totals.pkgs) ||
   containers.reduce((sum, c) => {
-    return sum + Number(c.pcs || c.pkgs || c.qty || 0);
+    return sum + toNumLoose(c.pcs || c.pkgs || c.qty);
   }, 0);
 
 const totalGw =
-  Number(totals.gw_kg || totals.gw || 0) ||
+  toNumLoose(totals.gw_kg) ||
   containers.reduce((sum, c) => {
-    return sum + Number(c.gw_kg || c.gw || c.gross_weight || 0);
+    return sum + toNumLoose(c.gw_kg || c.gw);
   }, 0);
 
 const totalCbm =
-  Number(totals.cbm || 0) ||
+  toNumLoose(totals.cbm) ||
   containers.reduce((sum, c) => {
-    return sum + Number(c.cbm || c.m3 || 0);
+    return sum + toNumLoose(c.cbm || c.m3);
   }, 0);
 
 const totalUnit =
-  totals.pkg_unit ||
-  totals.package_unit ||
-  totals.unit ||
-  unitRow.pkg_unit ||
-  unitRow.package_unit ||
-  unitRow.unit ||
+  getPkgUnit(totals) ||
+  getPkgUnit(unitRow) ||
   '';
 
 const pkgsText =
