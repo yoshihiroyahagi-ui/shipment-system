@@ -98,14 +98,46 @@ const currencyMap = {
 
   const containers = Array.isArray(an.containers) ? an.containers : [];
 
-  const totalPkgs = totals.pkgs || containers.reduce((sum, c) => sum + Number(c.pcs || 0), 0);
-  const totalGw = totals.gw_kg || containers.reduce((sum, c) => sum + Number(c.gw_kg || 0), 0);
-  const totalCbm = totals.cbm || containers.reduce((sum, c) => sum + Number(c.cbm || 0), 0);
-  const totalUnit = totals.pkg_unit || containers.find(c => c.pkg_unit)?.pkg_unit || '';
+  const unitRow = containers.find(c =>
+  c.pkg_unit ||
+  c.package_unit ||
+  c.unit
+) || {};
 
-  const pkgsText = totalPkgs ? `${totalPkgs}${totalUnit}` : '';
-  const gwText = totalGw ? `${totalGw}KGS` : '';
-  const cbmText = totalCbm ? `${totalCbm}CBM` : '';
+const totalPkgs =
+  Number(totals.pkgs || 0) ||
+  containers.reduce((sum, c) => {
+    return sum + Number(c.pcs || c.pkgs || c.qty || 0);
+  }, 0);
+
+const totalGw =
+  Number(totals.gw_kg || totals.gw || 0) ||
+  containers.reduce((sum, c) => {
+    return sum + Number(c.gw_kg || c.gw || c.gross_weight || 0);
+  }, 0);
+
+const totalCbm =
+  Number(totals.cbm || 0) ||
+  containers.reduce((sum, c) => {
+    return sum + Number(c.cbm || c.m3 || 0);
+  }, 0);
+
+const totalUnit =
+  totals.pkg_unit ||
+  totals.package_unit ||
+  totals.unit ||
+  unitRow.pkg_unit ||
+  unitRow.package_unit ||
+  unitRow.unit ||
+  '';
+
+const pkgsText =
+  totalPkgs
+    ? `${totalPkgs}${totalUnit ? ' ' + totalUnit : ''}`
+    : '';
+
+const gwText = totalGw ? `${totalGw} KGS` : '';
+const cbmText = totalCbm ? `${totalCbm} CBM` : '';
 
   const shipperBlock = [
     supplier.supplier_name,
