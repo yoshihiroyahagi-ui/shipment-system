@@ -628,7 +628,22 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
     if (anErr) {
       console.warn('[invoice/create-from-shipment] an snapshot not loaded:', anErr.message);
     }
+    const containerLines =
+      Array.isArray(an?.container_lines_json)
+        ? an.container_lines_json
+        : [];
 
+    const anPcsTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
+    }, 0);
+
+    const anGwTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.gw || r.gross_weight || r.weight || 0);
+    }, 0);
+
+    const anCbmTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
+    }, 0);
     const eta = an?.eta || s.eta || s.eta_date || null;
     const billingMonth =
       s.billing_month ||
@@ -658,9 +673,32 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
       eta,
 
       cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
-      pcs_total: an?.pcs_total || s.pcs_total || s.total_pcs || null,
-      gw_total: an?.gw_total || s.gw_total || s.total_gw || null,
-      cbm_total: an?.cbm_total || s.cbm_total || s.total_cbm || null,
+      pcs_total:
+        anPcsTotal ||
+        an?.pcs_total ||
+        s.pcs_total ||
+        s.total_pcs ||
+        null,
+
+      gw_total:
+        anGwTotal ||
+        an?.gw_total ||
+        s.gw_total ||
+        s.total_gw ||
+        null,
+
+      cbm_total:
+        anCbmTotal ||
+        an?.cbm_total ||
+        s.cbm_total ||
+        s.total_cbm ||
+        null,
+      
+      package_unit:
+        containerLines[0]?.unit ||
+        containerLines[0]?.package_unit ||
+        containerLines[0]?.pkg_unit ||
+        null,
 
       status: 'draft'
     };
