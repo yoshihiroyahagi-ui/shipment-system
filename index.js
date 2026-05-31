@@ -4931,18 +4931,38 @@ app.get('/api/invoice/unbilled-shipments', async (req, res) => {
       .map(r => r.shipment_id)
       .filter(Boolean);
 
-    let shipmentQuery = supabase
-      .from('shipments')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const billingMonth =
+  String(req.query.billing_month || '').trim();
 
-    if (billedShipmentIds.length > 0) {
-      shipmentQuery = shipmentQuery.not(
-        'shipment_id',
-        'in',
-        `(${billedShipmentIds.join(',')})`
-      );
-    }
+const customerCode =
+  String(req.query.customer_code || '').trim();
+
+let shipmentQuery = supabase
+  .from('shipments')
+  .select('*')
+  .order('created_at', { ascending: false });
+
+if (billingMonth) {
+  shipmentQuery = shipmentQuery.eq(
+    'planned_billing_month',
+    billingMonth
+  );
+}
+
+if (customerCode) {
+  shipmentQuery = shipmentQuery.eq(
+    'customer_code',
+    customerCode
+  );
+}
+
+if (billedShipmentIds.length > 0) {
+  shipmentQuery = shipmentQuery.not(
+    'shipment_id',
+    'in',
+    `(${billedShipmentIds.join(',')})`
+  );
+}
 
     const { data: shipments, error: shipErr } = await shipmentQuery;
 
