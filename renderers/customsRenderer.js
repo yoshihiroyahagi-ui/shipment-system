@@ -179,9 +179,19 @@ const cbmText = totalCbm ? `${totalCbm} CBM` : '';
     customer.address2_e
   ].filter(Boolean).join('\n');
 
-  const descriptionText = (customs.descriptions && customs.descriptions.length)
-    ? customs.descriptions.join('\n')
-    : itemLines.join('\n');
+  const firstCommodity =
+  Array.isArray(itemLines) && itemLines.length
+    ? itemLines[0]
+    : '';
+
+const descriptionText =
+  firstCommodity ||
+  (
+    customs.descriptions &&
+    customs.descriptions.length
+      ? customs.descriptions[0]
+      : ''
+  );
 
   const docsText = (customs.documents || [])
   .map(code => documentMap[code] || code)
