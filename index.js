@@ -3166,6 +3166,27 @@ console.log('[customsRenderer totals]', totals);
 const firstContainer = containers[0] || {};
 const firstLine = Array.isArray(delivery.lines) ? (delivery.lines[0] || {}) : {};
 
+const itemLines =
+  Array.isArray(delivery.lines)
+    ? delivery.lines
+        .map(l => l.commodity || l.item_name || l.description || '')
+        .filter(Boolean)
+    : [];
+
+const firstCommodity =
+  itemLines.length
+    ? itemLines[0]
+    : '';
+
+const descriptionText =
+  firstCommodity ||
+  customs.item_name ||
+  (
+    Array.isArray(customs.descriptions) && customs.descriptions.length
+      ? customs.descriptions[0]
+      : ''
+  );
+
 const shipperBlock = [
   snapshot.shipper_name || supplier.supplier_name || '',
   snapshot.shipper_address_1 || supplier.supplier_add_1 || '',
@@ -3259,9 +3280,9 @@ const data = {
   vehicle_type: customs.vehicle_type || '',
 
   invoice_no: customs.invoice_no || '',
-  item_name: customs.item_name || '',
+  item_name: descriptionText,
 
-  descriptions: Array.isArray(customs.descriptions) ? customs.descriptions : [],
+  descriptions: descriptionText ? [descriptionText] : [],
   documents: Array.isArray(labels.documents_labels) ? labels.documents_labels : [],
   cost_cover: Array.isArray(labels.cost_cover_labels) ? labels.cost_cover_labels : [],
   work_scopes: Array.isArray(customs.work_scopes) ? customs.work_scopes : [],
