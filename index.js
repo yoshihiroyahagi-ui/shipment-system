@@ -115,6 +115,21 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
 
     if (sErr) throw sErr;
 
+    let customerName = null;
+
+    if (s.customer_code) {
+
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('customer_code', s.customer_code)
+        .maybeSingle();
+
+      customerName =
+        customer?.customer_name ||
+        null;
+    }
+
     // AN snapshotがあれば優先
     const { data: an, error: anErr } = await supabase
       .from('shipment_an_snapshot')
@@ -162,7 +177,7 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
       shipment_id,
 
       customer_id: s.customer_id || null,
-      customer_name: s.customer_name || s.client_name || s.consignee_name || an?.consignee_name || null,
+      customer_name: customerName || an?.consignee_name || s.customer_name || s.client_name || null,
 
       invoice_no: null,
       billing_month: billingMonth,
@@ -243,6 +258,204 @@ app.use((req, res, next) => {
     return res.sendStatus(204);
   }
   next();
+});
+
+app.post('/api/invoice/reload-from-shipment', async (req, res) => {
+  try {
+    const { invoice_id } = req.body || {};
+
+    if (!invoice_id) {
+      return res.status(400).json({ ok: false, error: 'invoice_id is required' });
+    }
+
+    const { data: inv, error: invErr } = await supabase
+      .from('invoice_headers')
+      .select('*')
+      .eq('invoice_id', invoice_id)
+      .single();
+
+    if (invErr) throw invErr;
+
+    const shipment_id = inv.shipment_id;
+
+    if (!shipment_id) {
+      return res.status(400).json({ ok: false, error: 'shipment_id is missing' });
+    }
+
+    const { data: s, error: sErr } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .single();
+
+    if (sErr) throw sErr;
+
+    const { data: an, error: anErr } = await supabase
+      .from('shipment_an_snapshot')
+      .select('*')
+      .eq('shipment_id', shipment_id)
+      .maybeSingle();
+
+    if (anErr) throw anErr;
+
+    let containerLines = [];
+
+    if (Array.isArray(an?.container_lines_json)) {
+      containerLines = an.container_lines_json;
+    } else if (typeof an?.container_lines_json === 'string') {
+      try {
+        containerLines = JSON.parse(an.container_lines_json);
+      } catch (e) {
+        containerLines = [];
+      }
+    }
+
+    const anPcsTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
+    }, 0);
+
+    const anGwTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
+    }, 0);
+
+    const anCbmTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
+    }, 0);
+
+    const headerUpdate = {
+      customer_name:
+        an?.notify_name ||
+        an?.notify_party_name ||
+        an?.notify ||
+        inv.customer_name ||
+        s.customer_name ||
+        s.client_name ||
+        s.consignee_name ||
+        null,
+
+      hbl_no: inv.hbl_no || an?.hbl_no || s.hbl_no || null,
+      mbl_no: inv.mbl_no || an?.mbl_no || s.mbl_no || null,
+      vessel: inv.vessel || an?.vessel || s.vessel || null,
+      voyage: inv.voyage || an?.voyage || s.voyage || null,
+      pol: inv.pol || an?.pol || s.pol || null,
+      pod: inv.pod || an?.pod || s.pod || null,
+      eta: inv.eta || an?.eta || s.eta || s.eta_date || null,
+
+      cargo_summary:
+        inv.cargo_summary ||
+        an?.body_description ||
+        s.cargo_summary ||
+        s.item_name ||
+        null,
+
+      pcs_total:
+        inv.pcs_total ||
+        anPcsTotal ||
+        an?.pcs_total ||
+        s.pcs_total ||
+        s.total_pcs ||
+        null,
+
+      gw_total:
+        inv.gw_total ||
+        anGwTotal ||
+        an?.gw_total ||
+        s.gw_total ||
+        s.total_gw ||
+        null,
+
+      cbm_total:
+        inv.cbm_total ||
+        anCbmTotal ||
+        an?.cbm_total ||
+        s.cbm_total ||
+        s.total_cbm ||
+        null,
+
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedHeader, error: updErr } = await supabase
+      .from('invoice_headers')
+      .update(headerUpdate)
+      .eq('invoice_id', invoice_id)
+      .select('*')
+      .single();
+
+    if (updErr) throw updErr;
+
+    const { data: existingLines, error: lineCheckErr } = await supabase
+      .from('invoice_lines')
+      .select('invoice_line_id')
+      .eq('invoice_id', invoice_id);
+
+    if (lineCheckErr) throw lineCheckErr;
+
+    let insertedLines = [];
+
+    if (!existingLines || existingLines.length === 0) {
+      const { data: charges, error: chErr } = await supabase
+        .from('shipment_charges')
+        .select('*')
+        .eq('shipment_id', shipment_id)
+        .order('sort_no', { ascending: true });
+
+      if (chErr) throw chErr;
+
+      const invoiceLines = (charges || []).map((c, idx) => {
+        const currency = c.currency || 'JPY';
+        const foreignAmount = toNumber(c.foreign_amount || c.amount_foreign || c.amount || 0);
+        const rate = toNumber(c.exchange_rate || c.rate || 0);
+
+        const billingAmountNet =
+          currency !== 'JPY' && foreignAmount && rate
+            ? Math.round(foreignAmount * rate)
+            : toNumber(c.amount_jpy || c.billing_amount_net || c.amount || 0);
+
+        const taxType =
+          c.tax_type ||
+          c.billing_tax_type ||
+          'taxable';
+
+        return {
+          invoice_id,
+          line_no: idx + 1,
+          item_name: c.charge_name || c.item_name || c.description || '未設定',
+          description: c.description || c.charge_name || null,
+          show_on_invoice: true,
+
+          billing_amount_net: billingAmountNet,
+          billing_tax_type: taxType,
+          billing_tax_rate: taxType === 'taxable' ? 0.1 : 0,
+
+          currency,
+          foreign_unit_price: currency !== 'JPY' ? foreignAmount : null,
+          exchange_rate: currency !== 'JPY' ? rate : null,
+          line_note: c.memo || c.note || null
+        };
+      });
+
+      if (invoiceLines.length) {
+        const { data: insLines, error: insErr } = await supabase
+          .from('invoice_lines')
+          .insert(invoiceLines)
+          .select('*');
+
+        if (insErr) throw insErr;
+        insertedLines = insLines || [];
+      }
+    }
+
+    res.json({
+      ok: true,
+      header: updatedHeader,
+      inserted_lines: insertedLines
+    });
+
+  } catch (err) {
+    console.error('[invoice/reload-from-shipment] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
 });
 
 app.get('/api/relay/shipment-docs', async (req, res) => {
@@ -751,6 +964,82 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
       .single();
 
     if (hErr) throw hErr;
+
+    const { data: charges, error: chErr } = await supabase
+  .from('shipment_charges')
+  .select('*')
+  .eq('shipment_id', shipment_id)
+  .order('sort_no', { ascending: true });
+
+if (chErr) throw chErr;
+
+const invoiceLines = (charges || []).map((c, idx) => {
+  const currency = c.currency || 'JPY';
+
+  const foreignAmount =
+    toNumber(c.foreign_amount || c.amount_foreign || c.amount || 0);
+
+  const rate =
+    toNumber(c.exchange_rate || c.rate || 0);
+
+  const billingAmountNet =
+    currency !== 'JPY' && foreignAmount && rate
+      ? Math.round(foreignAmount * rate)
+      : toNumber(
+          c.amount_jpy ||
+          c.billing_amount_net ||
+          c.amount ||
+          0
+        );
+
+  const taxType =
+    c.tax_type ||
+    c.billing_tax_type ||
+    'taxable';
+
+  return {
+    invoice_id: header.invoice_id,
+    line_no: idx + 1,
+
+    item_name:
+      c.charge_name ||
+      c.item_name ||
+      c.description ||
+      '未設定',
+
+    description:
+      c.description ||
+      c.charge_name ||
+      null,
+
+    show_on_invoice: true,
+
+    billing_amount_net: billingAmountNet,
+    billing_tax_type: taxType,
+    billing_tax_rate:
+      taxType === 'taxable' ? 0.1 : 0,
+
+    currency,
+    foreign_unit_price:
+      currency !== 'JPY' ? foreignAmount : null,
+
+    exchange_rate:
+      currency !== 'JPY' ? rate : null,
+
+    line_note:
+      c.memo ||
+      c.note ||
+      null
+  };
+});
+
+if (invoiceLines.length) {
+  const { error: lineErr } = await supabase
+    .from('invoice_lines')
+    .insert(invoiceLines);
+
+  if (lineErr) throw lineErr;
+}
 
     res.json({
       ok: true,
