@@ -125,6 +125,30 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
     if (anErr) {
       console.warn('[invoice/create-from-shipment] an snapshot not loaded:', anErr.message);
     }
+    
+    let containerLines = [];
+
+    if (Array.isArray(an?.container_lines_json)) {
+      containerLines = an.container_lines_json; 
+    } else if (typeof an?.container_lines_json === 'string') {
+      try {
+        containerLines = JSON.parse(an.container_lines_json);
+      } catch (e) {
+        containerLines = [];
+     }
+    }
+
+    const anPcsTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
+    }, 0);
+
+    const anGwTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
+    }, 0);
+
+    const anCbmTotal = containerLines.reduce((sum, r) => {
+      return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
+    }, 0);
 
     const eta = an?.eta || s.eta || s.eta_date || null;
     const billingMonth =
@@ -155,9 +179,26 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
       eta,
 
       cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
-      pcs_total: an?.pcs_total || s.pcs_total || s.total_pcs || null,
-      gw_total: an?.gw_total || s.gw_total || s.total_gw || null,
-      cbm_total: an?.cbm_total || s.cbm_total || s.total_cbm || null,
+      pcs_total:
+        anPcsTotal ||
+        an?.pcs_total ||
+        s.pcs_total ||
+        s.total_pcs ||
+        null,
+
+      gw_total:
+        anGwTotal ||
+        an?.gw_total ||
+        s.gw_total ||
+        s.total_gw ||
+        null,
+
+      cbm_total:
+        anCbmTotal ||
+        an?.cbm_total ||
+        s.cbm_total ||
+        s.total_cbm ||
+        null,
 
       status: 'draft'
     };
@@ -756,6 +797,11 @@ app.post('/api/invoice/save', async (req, res) => {
         billing_tax_amount: c.tax,
         billing_amount_gross: c.gross,
 
+        currency: line.currency || 'JPY',
+        foreign_unit_price: line.foreign_unit_price || null,
+        exchange_rate: line.exchange_rate || null,
+        line_note: line.line_note || null,
+
         memo: line.memo || null
       };
     });
@@ -815,6 +861,9 @@ app.post('/api/invoice/save', async (req, res) => {
         payable_tax_rate: payableTaxRate,
         payable_tax_amount: c.tax,
         payable_amount_gross: c.gross,
+
+        vendor_invoice_no: p.vendor_invoice_no || null,
+        payment_date: p.payment_date || null,
 
         status: p.status || 'planned',
         payment_due_date: p.payment_due_date || null,
