@@ -384,23 +384,24 @@ app.post('/api/invoice/reload-from-shipment', async (req, res) => {
 
     if (updErr) throw updErr;
 
-    const { data: existingLines, error: lineCheckErr } = await supabase
-      .from('invoice_lines')
-      .select('invoice_line_id')
-      .eq('invoice_id', invoice_id);
+    // 既存の請求行は再取込時に作り直す
+const { error: delLineErr } = await supabase
+  .from('invoice_lines')
+  .delete()
+  .eq('invoice_id', invoice_id);
 
-    if (lineCheckErr) throw lineCheckErr;
+if (delLineErr) throw delLineErr;
 
-    let insertedLines = [];
+let insertedLines = [];
 
-    if (!existingLines || existingLines.length === 0) {
-      const { data: charges, error: chErr } = await supabase
-        .from('shipment_charges')
-        .select('*')
-        .eq('shipment_id', shipment_id)
-        .order('created_at', { ascending: true });
+// shipment_charges から請求行を再作成
+const { data: charges, error: chErr } = await supabase
+  .from('shipment_charges')
+  .select('*')
+  .eq('shipment_id', shipment_id)
+  .order('created_at', { ascending: true });
 
-      if (chErr) throw chErr;
+if (chErr) throw chErr;
 
       const invoiceLines = (charges || []).map((c, idx) => {
   const currency = c.currency || 'JPY';
@@ -474,7 +475,7 @@ app.post('/api/invoice/reload-from-shipment', async (req, res) => {
         if (insErr) throw insErr;
         insertedLines = insLines || [];
       }
-    }
+    
 
     res.json({
       ok: true,
