@@ -398,42 +398,72 @@ app.post('/api/invoice/reload-from-shipment', async (req, res) => {
         .from('shipment_charges')
         .select('*')
         .eq('shipment_id', shipment_id)
-        .order('sort_no', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (chErr) throw chErr;
 
       const invoiceLines = (charges || []).map((c, idx) => {
-        const currency = c.currency || 'JPY';
-        const foreignAmount = toNumber(c.foreign_amount || c.amount_foreign || c.amount || 0);
-        const rate = toNumber(c.exchange_rate || c.rate || 0);
+  const currency = c.currency || 'JPY';
 
-        const billingAmountNet =
-          currency !== 'JPY' && foreignAmount && rate
-            ? Math.round(foreignAmount * rate)
-            : toNumber(c.amount_jpy || c.billing_amount_net || c.amount || 0);
+  const qty = toNumber(c.qty || 1);
+  const rate = toNumber(c.rate || 0);
+  const fxRate = toNumber(c.fx_rate || 1);
 
-        const taxType =
-          c.tax_type ||
-          c.billing_tax_type ||
-          'taxable';
+  // shipment_charges.amount は税込っぽいので注意
+  // まずは amount を税抜として扱わず、単価×数量×為替を税抜基準にする
+  const billingAmountNet =
+    currency !== 'JPY'
+      ? Math.round(qty * rate * fxRate)
+      : Math.round(qty * rate);
 
-        return {
-          invoice_id,
-          line_no: idx + 1,
-          item_name: c.charge_name || c.item_name || c.description || '未設定',
-          description: c.description || c.charge_name || null,
-          show_on_invoice: true,
+  const taxType =
+    c.tax_category === '課税'
+      ? 'taxable'
+      : c.tax_category === '非課税'
+        ? 'non_taxable'
+        : c.tax_category === '免税'
+          ? 'exempt'
+          : c.tax_category === '不課税'
+            ? 'out_of_scope'
+            : c.tax_category === '立替'
+              ? 'pass_through'
+              : 'taxable';
 
-          billing_amount_net: billingAmountNet,
-          billing_tax_type: taxType,
-          billing_tax_rate: taxType === 'taxable' ? 0.1 : 0,
+  return {
+    invoice_id: header.invoice_id,
+    line_no: idx + 1,
 
-          currency,
-          foreign_unit_price: currency !== 'JPY' ? foreignAmount : null,
-          exchange_rate: currency !== 'JPY' ? rate : null,
-          line_note: c.memo || c.note || null
-        };
-      });
+    item_name:
+      c.charge_name ||
+      '未設定',
+
+    description:
+      c.charge_name ||
+      null,
+
+    show_on_invoice: true,
+
+    billing_amount_net: billingAmountNet,
+    billing_tax_type: taxType,
+    billing_tax_rate:
+      taxType === 'taxable' ? 0.1 : 0,
+
+    currency,
+    foreign_unit_price:
+      currency !== 'JPY'
+        ? rate
+        : null,
+
+    exchange_rate:
+      currency !== 'JPY'
+        ? fxRate
+        : null,
+
+    line_note:
+      c.note ||
+      null
+  };
+});
 
       if (invoiceLines.length) {
         const { data: insLines, error: insErr } = await supabase
