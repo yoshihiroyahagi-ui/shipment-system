@@ -427,6 +427,11 @@ const { data: charges, error: chErr } = await supabase
 
 if (chErr) throw chErr;
 
+console.log('[invoice charges]', {
+  count: charges ? charges.length : 0,
+  first: charges ? charges[0] : null
+});
+
       const invoiceLines = (charges || []).map((c, idx) => {
   const currency = c.currency || 'JPY';
 
@@ -1090,7 +1095,7 @@ if (firstLine?.delivery_dest_id) {
   .from('shipment_charges')
   .select('*')
   .eq('shipment_id', shipment_id)
-  .order('sort_no', { ascending: true });
+  .order('created_at', { ascending: true });
 
 if (chErr) throw chErr;
 
