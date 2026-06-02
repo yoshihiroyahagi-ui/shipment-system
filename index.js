@@ -394,11 +394,35 @@ if (delLineErr) throw delLineErr;
 
 let insertedLines = [];
 
+// shipment_charges 側の shipment_id を解決
+let chargeShipmentId = shipment_id;
+
+if (s.job_no) {
+  const { data: chargeLine, error: chargeLineErr } = await supabase
+    .from('shipment_lines')
+    .select('shipment_id')
+    .eq('job_no', s.job_no)
+    .limit(1)
+    .maybeSingle();
+
+  if (chargeLineErr) throw chargeLineErr;
+
+  if (chargeLine?.shipment_id) {
+    chargeShipmentId = chargeLine.shipment_id;
+  }
+}
+
+console.log('[invoice chargeShipmentId]', {
+  original_shipment_id: shipment_id,
+  chargeShipmentId,
+  job_no: s.job_no
+});
+
 // shipment_charges から請求行を再作成
 const { data: charges, error: chErr } = await supabase
   .from('shipment_charges')
   .select('*')
-  .eq('shipment_id', shipment_id)
+  .eq('shipment_id', chargeShipmentId)
   .order('created_at', { ascending: true });
 
 if (chErr) throw chErr;
@@ -903,6 +927,55 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
 
     if (sErr) throw sErr;
 
+    // customer_code から顧客名取得
+let customerName = null;
+
+if (s.customer_code) {
+  const { data: customer, error: customerErr } = await supabase
+    .from('customers')
+    .select('customer_name')
+    .eq('customer_code', s.customer_code)
+    .maybeSingle();
+
+  if (customerErr) throw customerErr;
+
+  customerName = customer?.customer_name || null;
+}
+
+// shipment_lines 1行目取得
+const { data: firstLine, error: lineErr } = await supabase
+  .from('shipment_lines')
+  .select('*')
+  .eq('job_no', s.job_no)
+  .limit(1)
+  .maybeSingle();
+
+if (lineErr) throw lineErr;
+
+// 配達先取得
+let deliveryDestName = '';
+let deliveryText = '';
+
+if (firstLine?.delivery_dest_id) {
+  const { data: dest, error: destErr } = await supabase
+    .from('dests')
+    .select('dest_name,dest_short_name,address1,address_official')
+    .eq('dest_id', firstLine.delivery_dest_id)
+    .maybeSingle();
+
+  if (destErr) throw destErr;
+
+  deliveryDestName =
+    dest?.dest_name ||
+    dest?.dest_short_name ||
+    '';
+
+  deliveryText = [
+    deliveryDestName,
+    firstLine.delivery_fixed
+  ].filter(Boolean).join(' / ');
+}
+
     // AN snapshotがあれば優先
     const { data: an, error: anErr } = await supabase
       .from('shipment_an_snapshot')
@@ -941,15 +1014,51 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
       shipment_id,
 
       customer_id: s.customer_id || null,
-      customer_name: s.customer_name || s.client_name || s.consignee_name || an?.consignee_name || null,
+      customer_name:
+        customerName ||
+        s.customer_name ||
+        s.client_name ||
+        null,
 
-      invoice_no: null,
+      hbl_no:
+        an?.hbl_no ||
+        s.hbl_no ||
+        null,
+
+      // 搬入確認番号は invoice_headers に inbound_no カラムが無ければ追加必要
+      inbound_no:
+        s.inbound_no ||
+        an?.inbound_no ||
+        null,
+
+      // invoice_headers に commercial_invoice_no 追加済みなら
+      commercial_invoice_no:
+        s.invoice_no ||
+        s.commercial_invoice_no ||
+        null,
+
+      pcs_total:
+        anPcsTotal ||
+        null,
+
+      gw_total:
+        anGwTotal ||
+        an?.gw_total ||
+        null,
+
+      cbm_total:
+        anCbmTotal ||
+        an?.cbm_total ||
+        null,
+
+      remarks:
+        deliveryText || null,
+      
       billing_month: billingMonth,
       invoice_date: new Date().toISOString().slice(0, 10),
       due_date: null,
 
       job_no: s.job_no || s.control_no || null,
-      hbl_no: an?.hbl_no || s.hbl_no || null,
       mbl_no: an?.mbl_no || s.mbl_no || null,
       vessel: an?.vessel || s.vessel || null,
       voyage: an?.voyage || s.voyage || null,
@@ -958,26 +1067,7 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
       eta,
 
       cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
-      pcs_total:
-        anPcsTotal ||
-        an?.pcs_total ||
-        s.pcs_total ||
-        s.total_pcs ||
-        null,
-
-      gw_total:
-        anGwTotal ||
-        an?.gw_total ||
-        s.gw_total ||
-        s.total_gw ||
-        null,
-
-      cbm_total:
-        anCbmTotal ||
-        an?.cbm_total ||
-        s.cbm_total ||
-        s.total_cbm ||
-        null,
+      
       
       package_unit:
         containerLines[0]?.unit ||
