@@ -44,3 +44,38 @@ export async function resolveInvoicePayloadByShipmentId(shipmentId) {
     charges
   };
 }
+export async function resolveInvoicePayloadByInvoiceId(invoiceId) {
+  if (!invoiceId) throw new Error('invoice_id is required');
+
+  const { data: header, error: hErr } = await supabase
+    .from('invoice_headers')
+    .select('*')
+    .eq('invoice_id', invoiceId)
+    .single();
+
+  if (hErr) throw hErr;
+  if (!header) throw new Error('invoice not found');
+
+  const { data: invoiceLines = [], error: lErr } = await supabase
+    .from('invoice_lines')
+    .select('*')
+    .eq('invoice_id', invoiceId)
+    .eq('show_on_invoice', true)
+    .order('line_no', { ascending: true });
+
+  if (lErr) throw lErr;
+
+  const { data: payableLines = [], error: pErr } = await supabase
+    .from('payable_lines')
+    .select('*')
+    .eq('invoice_id', invoiceId)
+    .order('created_at', { ascending: true });
+
+  if (pErr) throw pErr;
+
+  return {
+    header,
+    invoiceLines,
+    payableLines
+  };
+}

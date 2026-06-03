@@ -5206,6 +5206,24 @@ if (billedShipmentIds.length > 0) {
     });
   }
 });
+app.get('/api/invoice/render-html', async (req, res) => {
+  try {
+    const invoiceId = req.query.invoice_id;
+
+    if (!invoiceId) {
+      return res.status(400).send('invoice_id is required');
+    }
+
+    const payload = await resolveInvoicePayloadByInvoiceId(invoiceId);
+    const html = renderInvoiceHtml(payload);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('[invoice/render-html] error:', err);
+    res.status(500).send(err.message || String(err));
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
