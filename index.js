@@ -140,8 +140,6 @@ async function buildInvoiceHeaderFromShipment(shipment_id, base = {}) {
     console.warn('[invoice] an snapshot not loaded:', anErr.message);
   }
 
-  const containerLines = parseContainerLines(an);
-
   const pcsTotal = containerLines.reduce((sum, r) => {
     return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
   }, 0);
