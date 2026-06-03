@@ -292,23 +292,6 @@ async function buildInvoiceLinesFromShipmentCharges(invoice_id, shipment_id) {
   });
 }
 
-function parseContainerLines(an) {
-  const raw = an?.container_lines_json;
-
-  if (Array.isArray(raw)) return raw;
-
-  if (typeof raw === 'string' && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  return [];
-}
-
 function normalizeTaxType(v) {
   const s = String(v || '').trim();
 
