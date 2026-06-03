@@ -392,7 +392,79 @@ app.post('/api/invoice/create-from-shipment', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message || String(err) });
   }
 });
+app.post('/api/invoice/reload-from-shipment', async (req, res) => {
+  try {
+    const { invoice_id } = req.body || {};
 
+    if (!invoice_id) {
+      return res.status(400).json({ ok: false, error: 'invoice_id is required' });
+    }
+
+    const { data: inv, error: invErr } = await supabase
+      .from('invoice_headers')
+      .select('*')
+      .eq('invoice_id', invoice_id)
+      .single();
+
+    if (invErr) throw invErr;
+
+    const shipment_id = inv.shipment_id;
+
+    if (!shipment_id) {
+      return res.status(400).json({ ok: false, error: 'shipment_id is missing' });
+    }
+
+    const headerUpdate = await buildInvoiceHeaderFromShipment(shipment_id, inv);
+
+    delete headerUpdate.invoice_id;
+    delete headerUpdate.created_at;
+
+    headerUpdate.updated_at = new Date().toISOString();
+
+    const { data: updatedHeader, error: updErr } = await supabase
+      .from('invoice_headers')
+      .update(headerUpdate)
+      .eq('invoice_id', invoice_id)
+      .select('*')
+      .single();
+
+    if (updErr) throw updErr;
+
+    const { error: delLineErr } = await supabase
+      .from('invoice_lines')
+      .delete()
+      .eq('invoice_id', invoice_id);
+
+    if (delLineErr) throw delLineErr;
+
+    const invoiceLines = await buildInvoiceLinesFromShipmentCharges(
+      invoice_id,
+      shipment_id
+    );
+
+    let insertedLines = [];
+
+    if (invoiceLines.length) {
+      const { data: lines, error: insErr } = await supabase
+        .from('invoice_lines')
+        .insert(invoiceLines)
+        .select('*');
+
+      if (insErr) throw insErr;
+      insertedLines = lines || [];
+    }
+
+    res.json({
+      ok: true,
+      header: updatedHeader,
+      inserted_lines: insertedLines,
+      lines: insertedLines
+    });
+  } catch (err) {
+    console.error('[invoice/reload-from-shipment] error:', err);
+    res.status(500).json({ ok: false, error: err.message || String(err) });
+  }
+});
 app.get('/api/relay/shipment-docs', async (req, res) => {
   try {
     const shipmentId = String(req.query.shipment_id || '').trim();
