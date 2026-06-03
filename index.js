@@ -178,25 +178,38 @@ console.log('[invoice totals]', {
   let deliveryText = '';
 
   if (firstLine?.delivery_dest_id) {
-    const { data: dest, error: destErr } = await supabase
-      .from('dests')
-      .select('dest_name')
-      .eq('dest_id', firstLine.delivery_dest_id)
-      .maybeSingle();
+  const { data: dest, error: destErr } = await supabase
+    .from('dests')
+    .select('dest_name')
+    .eq('dest_id', firstLine.delivery_dest_id)
+    .maybeSingle();
 
-    if (destErr) throw destErr;
+  if (destErr) throw destErr;
 
-    const deliveryDestName =
-      dest?.dest_name ||
-      '';
+  const deliveryDestName = dest?.dest_name || '';
 
-    deliveryText = [
-      deliveryDestName,
-      firstLine.delivery_fixed
-    ].filter(Boolean).join(' / ');
-  } else if (firstLine?.delivery_fixed) {
-    deliveryText = firstLine.delivery_fixed;
-  }
+  deliveryText = [
+    [
+      firstLine.delivery_fixed,
+      firstLine.delivery_fixed_time
+    ].filter(Boolean).join(' '),
+
+    deliveryDestName
+  ]
+  .filter(Boolean)
+  .join(' / ');
+
+} else if (
+  firstLine?.delivery_fixed ||
+  firstLine?.delivery_fixed_time
+) {
+  deliveryText = [
+    firstLine.delivery_fixed,
+    firstLine.delivery_fixed_time
+  ]
+  .filter(Boolean)
+  .join(' ');
+}
 
   const eta = an?.eta || s.eta || s.eta_date || null;
 
