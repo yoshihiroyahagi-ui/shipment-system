@@ -143,16 +143,28 @@ async function buildInvoiceHeaderFromShipment(shipment_id, base = {}) {
   const containerLines = parseContainerLines(an);
 
   const pcsTotal = containerLines.reduce((sum, r) => {
-    return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
-  }, 0);
+  return sum + toNumber(r.pcs ?? r.qty ?? r.package_count ?? 0);
+}, 0);
 
-  const gwTotal = containerLines.reduce((sum, r) => {
-    return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
-  }, 0);
+const gwTotal = containerLines.reduce((sum, r) => {
+  return sum + toNumber(r.gw ?? r.gw_kg ?? r.gross_weight ?? r.weight ?? 0);
+}, 0);
 
-  const cbmTotal = containerLines.reduce((sum, r) => {
-    return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
-  }, 0);
+const cbmTotal = containerLines.reduce((sum, r) => {
+  return sum + toNumber(r.cbm ?? r.m3 ?? r.measurement ?? 0);
+}, 0);
+
+console.log('[invoice totals]', {
+  shipment_id,
+  pcsTotal,
+  gwTotal,
+  cbmTotal,
+  package_unit:
+    containerLines[0]?.pkg_unit ||
+    containerLines[0]?.package_unit ||
+    containerLines[0]?.unit ||
+    null
+});
 
   const { data: firstLine, error: lineErr } = await supabase
     .from('shipment_lines')
