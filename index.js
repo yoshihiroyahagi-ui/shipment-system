@@ -14,6 +14,8 @@ import { buildDeliveryHtmlFromPayload } from './renderers/deliveryRenderer.js';
 import invoiceRouter from './routes/invoice.js';
 import puppeteer from 'puppeteer';
 import { resolveDeliveryPayload } from './services/deliveryResolver.js';
+import { resolveInvoicePayloadByInvoiceId } from './services/invoiceResolver.js';
+import { renderInvoiceHtml } from './renderers/invoiceRenderer.js';
 
 const app = express();
 
