@@ -168,7 +168,7 @@ async function buildInvoiceHeaderFromShipment(shipment_id, base = {}) {
   if (firstLine?.delivery_dest_id) {
     const { data: dest, error: destErr } = await supabase
       .from('dests')
-      .select('dest_name,dest_short_name,address1,address_official')
+      .select('dest_name')
       .eq('dest_id', firstLine.delivery_dest_id)
       .maybeSingle();
 
@@ -176,7 +176,6 @@ async function buildInvoiceHeaderFromShipment(shipment_id, base = {}) {
 
     const deliveryDestName =
       dest?.dest_name ||
-      dest?.dest_short_name ||
       '';
 
     deliveryText = [
