@@ -79,164 +79,435 @@ function getBillingMonthFromDate(d) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
 }
 
-app.post('/api/invoice/create-from-shipment', async (req, res) => {
-  try {
-    const { shipment_id } = req.body || {};
+function parseContainerLines(an) {
+  const raw = an?.container_lines_json;
 
-    if (!shipment_id) {
-      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
+  if (Array.isArray(raw)) return raw;
+
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
     }
-
-    // 既に請求書があるか確認
-    const { data: existing, error: exErr } = await supabase
-      .from('invoice_headers')
-      .select('*')
-      .eq('shipment_id', shipment_id)
-      .neq('status', 'cancelled')
-      .maybeSingle();
-
-    if (exErr) throw exErr;
-
-    if (existing) {
-      return res.json({
-        ok: true,
-        already_exists: true,
-        invoice_id: existing.invoice_id,
-        header: existing
-      });
-    }
-
-    // shipment本体取得
-    const { data: s, error: sErr } = await supabase
-      .from('shipments')
-      .select('*')
-      .eq('shipment_id', shipment_id)
-      .single();
-
-    if (sErr) throw sErr;
-
-    let customerName = null;
-
-    if (s.customer_code) {
-
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('customer_code', s.customer_code)
-        .maybeSingle();
-
-      customerName =
-        customer?.customer_name ||
-        null;
-    }
-
-    // AN snapshotがあれば優先
-    const { data: an, error: anErr } = await supabase
-      .from('shipment_an_snapshot')
-      .select('*')
-      .eq('shipment_id', shipment_id)
-      .maybeSingle();
-
-    if (anErr) {
-      console.warn('[invoice/create-from-shipment] an snapshot not loaded:', anErr.message);
-    }
-    
-    let containerLines = [];
-
-    if (Array.isArray(an?.container_lines_json)) {
-      containerLines = an.container_lines_json; 
-    } else if (typeof an?.container_lines_json === 'string') {
-      try {
-        containerLines = JSON.parse(an.container_lines_json);
-      } catch (e) {
-        containerLines = [];
-     }
-    }
-
-    const anPcsTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
-    }, 0);
-
-    const anGwTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
-    }, 0);
-
-    const anCbmTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
-    }, 0);
-
-    const eta = an?.eta || s.eta || s.eta_date || null;
-    const billingMonth =
-      s.billing_month ||
-      s.planned_billing_month ||
-      getBillingMonthFromDate(eta) ||
-      getBillingMonthFromDate(new Date());
-
-    const headerPayload = {
-      source_type: 'SHIPMENT',
-      shipment_id,
-
-      customer_id: s.customer_id || null,
-      customer_name: customerName || an?.consignee_name || s.customer_name || s.client_name || null,
-
-      invoice_no: null,
-      billing_month: billingMonth,
-      invoice_date: new Date().toISOString().slice(0, 10),
-      due_date: null,
-
-      job_no: s.job_no || s.control_no || null,
-      hbl_no: an?.hbl_no || s.hbl_no || null,
-      mbl_no: an?.mbl_no || s.mbl_no || null,
-      vessel: an?.vessel || s.vessel || null,
-      voyage: an?.voyage || s.voyage || null,
-      pol: an?.pol || s.pol || null,
-      pod: an?.pod || s.pod || null,
-      eta,
-
-      cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
-      pcs_total:
-        anPcsTotal ||
-        an?.pcs_total ||
-        s.pcs_total ||
-        s.total_pcs ||
-        null,
-
-      gw_total:
-        anGwTotal ||
-        an?.gw_total ||
-        s.gw_total ||
-        s.total_gw ||
-        null,
-
-      cbm_total:
-        anCbmTotal ||
-        an?.cbm_total ||
-        s.cbm_total ||
-        s.total_cbm ||
-        null,
-
-      status: 'draft'
-    };
-
-    const { data: header, error: hErr } = await supabase
-      .from('invoice_headers')
-      .insert(headerPayload)
-      .select('*')
-      .single();
-
-    if (hErr) throw hErr;
-
-    res.json({
-      ok: true,
-      already_exists: false,
-      invoice_id: header.invoice_id,
-      header
-    });
-  } catch (err) {
-    console.error('[invoice/create-from-shipment] error:', err);
-    res.status(500).json({ ok: false, error: err.message || String(err) });
   }
-});
+
+  return [];
+}
+
+function normalizeTaxType(v) {
+  const s = String(v || '').trim();
+
+  if (s === '課税' || s === 'taxable') return 'taxable';
+  if (s === '非課税' || s === 'non_taxable') return 'non_taxable';
+  if (s === '免税' || s === 'exempt') return 'exempt';
+  if (s === '不課税' || s === 'out_of_scope') return 'out_of_scope';
+  if (s === '立替' || s === 'pass_through') return 'pass_through';
+
+  return 'taxable';
+}
+
+async function buildInvoiceHeaderFromShipment(shipment_id, base = {}) {
+  const { data: s, error: sErr } = await supabase
+    .from('shipments')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .single();
+
+  if (sErr) throw sErr;
+
+  let customerName = null;
+
+  if (s.customer_code) {
+    const { data: customer, error: customerErr } = await supabase
+      .from('customers')
+      .select('customer_name')
+      .eq('customer_code', s.customer_code)
+      .maybeSingle();
+
+    if (customerErr) throw customerErr;
+    customerName = customer?.customer_name || null;
+  }
+
+  const { data: an, error: anErr } = await supabase
+    .from('shipment_an_snapshot')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .maybeSingle();
+
+  if (anErr) {
+    console.warn('[invoice] an snapshot not loaded:', anErr.message);
+  }
+
+  const containerLines = parseContainerLines(an);
+
+  const pcsTotal = containerLines.reduce((sum, r) => {
+    return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
+  }, 0);
+
+  const gwTotal = containerLines.reduce((sum, r) => {
+    return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
+  }, 0);
+
+  const cbmTotal = containerLines.reduce((sum, r) => {
+    return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
+  }, 0);
+
+  const { data: firstLine, error: lineErr } = await supabase
+    .from('shipment_lines')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .limit(1)
+    .maybeSingle();
+
+  if (lineErr) throw lineErr;
+
+  let deliveryText = '';
+
+  if (firstLine?.delivery_dest_id) {
+    const { data: dest, error: destErr } = await supabase
+      .from('dests')
+      .select('dest_name,dest_short_name,address1,address_official')
+      .eq('dest_id', firstLine.delivery_dest_id)
+      .maybeSingle();
+
+    if (destErr) throw destErr;
+
+    const deliveryDestName =
+      dest?.dest_name ||
+      dest?.dest_short_name ||
+      '';
+
+    deliveryText = [
+      deliveryDestName,
+      firstLine.delivery_fixed
+    ].filter(Boolean).join(' / ');
+  } else if (firstLine?.delivery_fixed) {
+    deliveryText = firstLine.delivery_fixed;
+  }
+
+  const eta = an?.eta || s.eta || s.eta_date || null;
+
+  const billingMonth =
+    base.billing_month ||
+    s.billing_month ||
+    s.planned_billing_month ||
+    getBillingMonthFromDate(eta) ||
+    getBillingMonthFromDate(new Date());
+
+  return {
+    source_type: 'SHIPMENT',
+    shipment_id,
+
+    customer_id: s.customer_id || base.customer_id || null,
+    customer_name: customerName || s.customer_name || s.client_name || base.customer_name || null,
+
+    invoice_no: base.invoice_no || null,
+    billing_month: billingMonth,
+    invoice_date: base.invoice_date || new Date().toISOString().slice(0, 10),
+    due_date: base.due_date || null,
+
+    job_no: s.job_no || s.control_no || base.job_no || null,
+    hbl_no: an?.hbl_no || s.hbl_no || base.hbl_no || null,
+    mbl_no: an?.mbl_no || s.mbl_no || base.mbl_no || null,
+    vessel: an?.vessel || s.vessel || base.vessel || null,
+    voyage: an?.voyage || s.voyage || base.voyage || null,
+    pol: an?.pol || s.pol || base.pol || null,
+    pod: an?.pod || s.pod || base.pod || null,
+    eta,
+
+    inbound_no: s.inbound_no || an?.inbound_no || base.inbound_no || null,
+    commercial_invoice_no:
+      s.invoice_no ||
+      s.commercial_invoice_no ||
+      base.commercial_invoice_no ||
+      null,
+
+    cargo_summary:
+      an?.body_description ||
+      an?.body_text ||
+      s.cargo_summary ||
+      s.item_name ||
+      base.cargo_summary ||
+      null,
+
+    pcs_total: pcsTotal || an?.pcs_total || s.pcs_total || s.total_pcs || null,
+    gw_total: gwTotal || an?.gw_total || s.gw_total || s.total_gw || null,
+    cbm_total: cbmTotal || an?.cbm_total || s.cbm_total || s.total_cbm || null,
+
+    package_unit:
+      containerLines[0]?.pkg_unit ||
+      containerLines[0]?.package_unit ||
+      containerLines[0]?.unit ||
+      base.package_unit ||
+      null,
+
+    remarks: deliveryText || base.remarks || null,
+    status: base.status || 'draft'
+  };
+}
+
+async function buildInvoiceLinesFromShipmentCharges(invoice_id, shipment_id) {
+  const { data: charges, error: chErr } = await supabase
+    .from('shipment_charges')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .order('created_at', { ascending: true });
+
+  if (chErr) throw chErr;
+
+  return (charges || []).map((c, idx) => {
+    const currency = c.currency || 'JPY';
+    const qty = toNumber(c.qty || 1);
+    const rate = toNumber(c.rate || 0);
+    const fxRate = toNumber(c.fx_rate || c.exchange_rate || 1);
+
+    const billingAmountNet =
+      currency !== 'JPY'
+        ? Math.round(qty * rate * fxRate)
+        : Math.round(qty * rate);
+
+    const taxType = normalizeTaxType(c.tax_category || c.tax_type || c.billing_tax_type);
+    const taxRate = taxType === 'taxable' ? 0.1 : 0;
+    const tax = calcTax(billingAmountNet, taxType, taxRate);
+
+    return {
+      invoice_id,
+      line_no: idx + 1,
+
+      item_name: c.charge_name || c.item_name || c.description || '未設定',
+      description: c.charge_name || c.description || null,
+      show_on_invoice: true,
+
+      billing_amount_net: tax.net,
+      billing_tax_type: taxType,
+      billing_tax_rate: taxRate,
+      billing_tax_amount: tax.tax,
+      billing_amount_gross: tax.gross,
+
+      currency,
+      foreign_unit_price: currency !== 'JPY' ? rate : null,
+      exchange_rate: currency !== 'JPY' ? fxRate : null,
+      line_note: c.note || c.memo || null
+    };
+  });
+}
+
+function parseContainerLines(an) {
+  const raw = an?.container_lines_json;
+
+  if (Array.isArray(raw)) return raw;
+
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function normalizeTaxType(v) {
+  const s = String(v || '').trim();
+
+  if (s === '課税' || s === 'taxable') return 'taxable';
+  if (s === '非課税' || s === 'non_taxable') return 'non_taxable';
+  if (s === '免税' || s === 'exempt') return 'exempt';
+  if (s === '不課税' || s === 'out_of_scope') return 'out_of_scope';
+  if (s === '立替' || s === 'pass_through') return 'pass_through';
+
+  return 'taxable';
+}
+
+async function buildInvoiceHeaderFromShipment(shipment_id, base = {}) {
+  const { data: s, error: sErr } = await supabase
+    .from('shipments')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .single();
+
+  if (sErr) throw sErr;
+
+  let customerName = null;
+
+  if (s.customer_code) {
+    const { data: customer, error: customerErr } = await supabase
+      .from('customers')
+      .select('customer_name')
+      .eq('customer_code', s.customer_code)
+      .maybeSingle();
+
+    if (customerErr) throw customerErr;
+    customerName = customer?.customer_name || null;
+  }
+
+  const { data: an, error: anErr } = await supabase
+    .from('shipment_an_snapshot')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .maybeSingle();
+
+  if (anErr) {
+    console.warn('[invoice] an snapshot not loaded:', anErr.message);
+  }
+
+  const containerLines = parseContainerLines(an);
+
+  const pcsTotal = containerLines.reduce((sum, r) => {
+    return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
+  }, 0);
+
+  const gwTotal = containerLines.reduce((sum, r) => {
+    return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
+  }, 0);
+
+  const cbmTotal = containerLines.reduce((sum, r) => {
+    return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
+  }, 0);
+
+  const { data: firstLine, error: lineErr } = await supabase
+    .from('shipment_lines')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .limit(1)
+    .maybeSingle();
+
+  if (lineErr) throw lineErr;
+
+  let deliveryText = '';
+
+  if (firstLine?.delivery_dest_id) {
+    const { data: dest, error: destErr } = await supabase
+      .from('dests')
+      .select('dest_name,dest_short_name,address1,address_official')
+      .eq('dest_id', firstLine.delivery_dest_id)
+      .maybeSingle();
+
+    if (destErr) throw destErr;
+
+    const deliveryDestName =
+      dest?.dest_name ||
+      dest?.dest_short_name ||
+      '';
+
+    deliveryText = [
+      deliveryDestName,
+      firstLine.delivery_fixed
+    ].filter(Boolean).join(' / ');
+  } else if (firstLine?.delivery_fixed) {
+    deliveryText = firstLine.delivery_fixed;
+  }
+
+  const eta = an?.eta || s.eta || s.eta_date || null;
+
+  const billingMonth =
+    base.billing_month ||
+    s.billing_month ||
+    s.planned_billing_month ||
+    getBillingMonthFromDate(eta) ||
+    getBillingMonthFromDate(new Date());
+
+  return {
+    source_type: 'SHIPMENT',
+    shipment_id,
+
+    customer_id: s.customer_id || base.customer_id || null,
+    customer_name: customerName || s.customer_name || s.client_name || base.customer_name || null,
+
+    invoice_no: base.invoice_no || null,
+    billing_month: billingMonth,
+    invoice_date: base.invoice_date || new Date().toISOString().slice(0, 10),
+    due_date: base.due_date || null,
+
+    job_no: s.job_no || s.control_no || base.job_no || null,
+    hbl_no: an?.hbl_no || s.hbl_no || base.hbl_no || null,
+    mbl_no: an?.mbl_no || s.mbl_no || base.mbl_no || null,
+    vessel: an?.vessel || s.vessel || base.vessel || null,
+    voyage: an?.voyage || s.voyage || base.voyage || null,
+    pol: an?.pol || s.pol || base.pol || null,
+    pod: an?.pod || s.pod || base.pod || null,
+    eta,
+
+    inbound_no: s.inbound_no || an?.inbound_no || base.inbound_no || null,
+    commercial_invoice_no:
+      s.invoice_no ||
+      s.commercial_invoice_no ||
+      base.commercial_invoice_no ||
+      null,
+
+    cargo_summary:
+      an?.body_description ||
+      an?.body_text ||
+      s.cargo_summary ||
+      s.item_name ||
+      base.cargo_summary ||
+      null,
+
+    pcs_total: pcsTotal || an?.pcs_total || s.pcs_total || s.total_pcs || null,
+    gw_total: gwTotal || an?.gw_total || s.gw_total || s.total_gw || null,
+    cbm_total: cbmTotal || an?.cbm_total || s.cbm_total || s.total_cbm || null,
+
+    package_unit:
+      containerLines[0]?.pkg_unit ||
+      containerLines[0]?.package_unit ||
+      containerLines[0]?.unit ||
+      base.package_unit ||
+      null,
+
+    remarks: deliveryText || base.remarks || null,
+    status: base.status || 'draft'
+  };
+}
+
+async function buildInvoiceLinesFromShipmentCharges(invoice_id, shipment_id) {
+  const { data: charges, error: chErr } = await supabase
+    .from('shipment_charges')
+    .select('*')
+    .eq('shipment_id', shipment_id)
+    .order('created_at', { ascending: true });
+
+  if (chErr) throw chErr;
+
+  return (charges || []).map((c, idx) => {
+    const currency = c.currency || 'JPY';
+    const qty = toNumber(c.qty || 1);
+    const rate = toNumber(c.rate || 0);
+    const fxRate = toNumber(c.fx_rate || c.exchange_rate || 1);
+
+    const billingAmountNet =
+      currency !== 'JPY'
+        ? Math.round(qty * rate * fxRate)
+        : Math.round(qty * rate);
+
+    const taxType = normalizeTaxType(c.tax_category || c.tax_type || c.billing_tax_type);
+    const taxRate = taxType === 'taxable' ? 0.1 : 0;
+    const tax = calcTax(billingAmountNet, taxType, taxRate);
+
+    return {
+      invoice_id,
+      line_no: idx + 1,
+
+      item_name: c.charge_name || c.item_name || c.description || '未設定',
+      description: c.charge_name || c.description || null,
+      show_on_invoice: true,
+
+      billing_amount_net: tax.net,
+      billing_tax_type: taxType,
+      billing_tax_rate: taxRate,
+      billing_tax_amount: tax.tax,
+      billing_amount_gross: tax.gross,
+
+      currency,
+      foreign_unit_price: currency !== 'JPY' ? rate : null,
+      exchange_rate: currency !== 'JPY' ? fxRate : null,
+      line_note: c.note || c.memo || null
+    };
+  });
+}
 
 // CSVファイルをメモリ上で受け取る設定
 const upload = multer({ storage: multer.memoryStorage() });
@@ -260,260 +531,68 @@ app.use((req, res, next) => {
   next();
 });
 
-app.post('/api/invoice/reload-from-shipment', async (req, res) => {
+app.post('/api/invoice/create-from-shipment', async (req, res) => {
   try {
-    const { invoice_id } = req.body || {};
-
-    if (!invoice_id) {
-      return res.status(400).json({ ok: false, error: 'invoice_id is required' });
-    }
-
-    const { data: inv, error: invErr } = await supabase
-      .from('invoice_headers')
-      .select('*')
-      .eq('invoice_id', invoice_id)
-      .single();
-
-    if (invErr) throw invErr;
-
-    const shipment_id = inv.shipment_id;
+    const { shipment_id } = req.body || {};
 
     if (!shipment_id) {
-      return res.status(400).json({ ok: false, error: 'shipment_id is missing' });
+      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
     }
 
-    const { data: s, error: sErr } = await supabase
-      .from('shipments')
+    const { data: existing, error: exErr } = await supabase
+      .from('invoice_headers')
       .select('*')
       .eq('shipment_id', shipment_id)
-      .single();
-
-    if (sErr) throw sErr;
-
-    const { data: an, error: anErr } = await supabase
-      .from('shipment_an_snapshot')
-      .select('*')
-      .eq('shipment_id', shipment_id)
+      .neq('status', 'cancelled')
       .maybeSingle();
 
-    if (anErr) throw anErr;
+    if (exErr) throw exErr;
 
-    let containerLines = [];
-
-    if (Array.isArray(an?.container_lines_json)) {
-      containerLines = an.container_lines_json;
-    } else if (typeof an?.container_lines_json === 'string') {
-      try {
-        containerLines = JSON.parse(an.container_lines_json);
-      } catch (e) {
-        containerLines = [];
-      }
+    if (existing) {
+      return res.json({
+        ok: true,
+        already_exists: true,
+        invoice_id: existing.invoice_id,
+        header: existing
+      });
     }
 
-    const anPcsTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
-    }, 0);
+    const headerPayload = await buildInvoiceHeaderFromShipment(shipment_id);
 
-    const anGwTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.gw || r.gw_kg || r.gross_weight || r.weight || 0);
-    }, 0);
-
-    const anCbmTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
-    }, 0);
-
-    const headerUpdate = {
-      customer_name:
-        an?.notify_name ||
-        an?.notify_party_name ||
-        an?.notify ||
-        inv.customer_name ||
-        s.customer_name ||
-        s.client_name ||
-        s.consignee_name ||
-        null,
-
-      hbl_no: inv.hbl_no || an?.hbl_no || s.hbl_no || null,
-      mbl_no: inv.mbl_no || an?.mbl_no || s.mbl_no || null,
-      vessel: inv.vessel || an?.vessel || s.vessel || null,
-      voyage: inv.voyage || an?.voyage || s.voyage || null,
-      pol: inv.pol || an?.pol || s.pol || null,
-      pod: inv.pod || an?.pod || s.pod || null,
-      eta: inv.eta || an?.eta || s.eta || s.eta_date || null,
-
-      cargo_summary:
-        inv.cargo_summary ||
-        an?.body_description ||
-        s.cargo_summary ||
-        s.item_name ||
-        null,
-
-      pcs_total:
-        inv.pcs_total ||
-        anPcsTotal ||
-        an?.pcs_total ||
-        s.pcs_total ||
-        s.total_pcs ||
-        null,
-
-      gw_total:
-        inv.gw_total ||
-        anGwTotal ||
-        an?.gw_total ||
-        s.gw_total ||
-        s.total_gw ||
-        null,
-
-      cbm_total:
-        inv.cbm_total ||
-        anCbmTotal ||
-        an?.cbm_total ||
-        s.cbm_total ||
-        s.total_cbm ||
-        null,
-
-      updated_at: new Date().toISOString()
-    };
-
-    const { data: updatedHeader, error: updErr } = await supabase
+    const { data: header, error: hErr } = await supabase
       .from('invoice_headers')
-      .update(headerUpdate)
-      .eq('invoice_id', invoice_id)
+      .insert(headerPayload)
       .select('*')
       .single();
 
-    if (updErr) throw updErr;
+    if (hErr) throw hErr;
 
-    // 既存の請求行は再取込時に作り直す
-const { error: delLineErr } = await supabase
-  .from('invoice_lines')
-  .delete()
-  .eq('invoice_id', invoice_id);
+    const invoiceLines = await buildInvoiceLinesFromShipmentCharges(
+      header.invoice_id,
+      shipment_id
+    );
 
-if (delLineErr) throw delLineErr;
+    let insertedLines = [];
 
-let insertedLines = [];
+    if (invoiceLines.length) {
+      const { data: lines, error: lineErr } = await supabase
+        .from('invoice_lines')
+        .insert(invoiceLines)
+        .select('*');
 
-// shipment_charges 側の shipment_id を解決
-let chargeShipmentId = shipment_id;
-
-if (s.job_no) {
-  const { data: chargeLine, error: chargeLineErr } = await supabase
-    .from('shipment_lines')
-    .select('shipment_id')
-    .eq('job_no', s.job_no)
-    .limit(1)
-    .maybeSingle();
-
-  if (chargeLineErr) throw chargeLineErr;
-
-  if (chargeLine?.shipment_id) {
-    chargeShipmentId = chargeLine.shipment_id;
-  }
-}
-
-console.log('[invoice chargeShipmentId]', {
-  original_shipment_id: shipment_id,
-  chargeShipmentId,
-  job_no: s.job_no
-});
-
-// shipment_charges から請求行を再作成
-const { data: charges, error: chErr } = await supabase
-  .from('shipment_charges')
-  .select('*')
-  .eq('shipment_id', chargeShipmentId)
-  .order('created_at', { ascending: true });
-
-if (chErr) throw chErr;
-
-console.log('[invoice charges]', {
-  count: charges ? charges.length : 0,
-  first: charges ? charges[0] : null
-});
-
-      const invoiceLines = (charges || []).map((c, idx) => {
-  const currency = c.currency || 'JPY';
-
-  const qty = toNumber(c.qty || 1);
-  const rate = toNumber(c.rate || 0);
-  const fxRate = toNumber(c.fx_rate || 1);
-
-  // shipment_charges.amount は税込っぽいので注意
-  // まずは amount を税抜として扱わず、単価×数量×為替を税抜基準にする
-  const billingAmountNet =
-    currency !== 'JPY'
-      ? Math.round(qty * rate * fxRate)
-      : Math.round(qty * rate);
-
-  const taxType =
-    c.tax_category === '課税'
-      ? 'taxable'
-      : c.tax_category === '非課税'
-        ? 'non_taxable'
-        : c.tax_category === '免税'
-          ? 'exempt'
-          : c.tax_category === '不課税'
-            ? 'out_of_scope'
-            : c.tax_category === '立替'
-              ? 'pass_through'
-              : 'taxable';
-
-  return {
-    invoice_id: header.invoice_id,
-    line_no: idx + 1,
-
-    item_name:
-      c.charge_name ||
-      '未設定',
-
-    description:
-      c.charge_name ||
-      null,
-
-    show_on_invoice: true,
-
-    billing_amount_net: billingAmountNet,
-    billing_tax_type: taxType,
-    billing_tax_rate:
-      taxType === 'taxable' ? 0.1 : 0,
-
-    currency,
-    foreign_unit_price:
-      currency !== 'JPY'
-        ? rate
-        : null,
-
-    exchange_rate:
-      currency !== 'JPY'
-        ? fxRate
-        : null,
-
-    line_note:
-      c.note ||
-      null
-  };
-});
-
-      if (invoiceLines.length) {
-        const { data: insLines, error: insErr } = await supabase
-          .from('invoice_lines')
-          .insert(invoiceLines)
-          .select('*');
-
-        if (insErr) throw insErr;
-        insertedLines = insLines || [];
-      }
-    
+      if (lineErr) throw lineErr;
+      insertedLines = lines || [];
+    }
 
     res.json({
       ok: true,
-      header: updatedHeader,
-      inserted_lines: insertedLines
+      already_exists: false,
+      invoice_id: header.invoice_id,
+      header,
+      lines: insertedLines
     });
-
   } catch (err) {
-    console.error('[invoice/reload-from-shipment] error:', err);
+    console.error('[invoice/create-from-shipment] error:', err);
     res.status(500).json({ ok: false, error: err.message || String(err) });
   }
 });
@@ -896,288 +975,7 @@ app.post('/api/invoice/create-blank', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message || String(err) });
   }
 });
-app.post('/api/invoice/create-from-shipment', async (req, res) => {
-  try {
-    const { shipment_id } = req.body || {};
 
-    if (!shipment_id) {
-      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
-    }
-
-    // 既に請求書があるか確認
-    const { data: existing, error: exErr } = await supabase
-      .from('invoice_headers')
-      .select('*')
-      .eq('shipment_id', shipment_id)
-      .neq('status', 'cancelled')
-      .maybeSingle();
-
-    if (exErr) throw exErr;
-
-    if (existing) {
-      return res.json({
-        ok: true,
-        already_exists: true,
-        invoice_id: existing.invoice_id,
-        header: existing
-      });
-    }
-
-    // shipment本体取得
-    const { data: s, error: sErr } = await supabase
-      .from('shipments')
-      .select('*')
-      .eq('shipment_id', shipment_id)
-      .single();
-
-    if (sErr) throw sErr;
-
-    // customer_code から顧客名取得
-let customerName = null;
-
-if (s.customer_code) {
-  const { data: customer, error: customerErr } = await supabase
-    .from('customers')
-    .select('customer_name')
-    .eq('customer_code', s.customer_code)
-    .maybeSingle();
-
-  if (customerErr) throw customerErr;
-
-  customerName = customer?.customer_name || null;
-}
-
-// shipment_lines 1行目取得
-const { data: firstLine, error: lineErr } = await supabase
-  .from('shipment_lines')
-  .select('*')
-  .eq('job_no', s.job_no)
-  .limit(1)
-  .maybeSingle();
-
-if (lineErr) throw lineErr;
-
-// 配達先取得
-let deliveryDestName = '';
-let deliveryText = '';
-
-if (firstLine?.delivery_dest_id) {
-  const { data: dest, error: destErr } = await supabase
-    .from('dests')
-    .select('dest_name,dest_short_name,address1,address_official')
-    .eq('dest_id', firstLine.delivery_dest_id)
-    .maybeSingle();
-
-  if (destErr) throw destErr;
-
-  deliveryDestName =
-    dest?.dest_name ||
-    dest?.dest_short_name ||
-    '';
-
-  deliveryText = [
-    deliveryDestName,
-    firstLine.delivery_fixed
-  ].filter(Boolean).join(' / ');
-}
-
-    // AN snapshotがあれば優先
-    const { data: an, error: anErr } = await supabase
-      .from('shipment_an_snapshot')
-      .select('*')
-      .eq('shipment_id', shipment_id)
-      .maybeSingle();
-
-    if (anErr) {
-      console.warn('[invoice/create-from-shipment] an snapshot not loaded:', anErr.message);
-    }
-    const containerLines =
-      Array.isArray(an?.container_lines_json)
-        ? an.container_lines_json
-        : [];
-
-    const anPcsTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.pcs || r.qty || r.package_count || 0);
-    }, 0);
-
-    const anGwTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.gw || r.gross_weight || r.weight || 0);
-    }, 0);
-
-    const anCbmTotal = containerLines.reduce((sum, r) => {
-      return sum + toNumber(r.cbm || r.m3 || r.measurement || 0);
-    }, 0);
-    const eta = an?.eta || s.eta || s.eta_date || null;
-    const billingMonth =
-      s.billing_month ||
-      s.planned_billing_month ||
-      getBillingMonthFromDate(eta) ||
-      getBillingMonthFromDate(new Date());
-
-    const headerPayload = {
-      source_type: 'SHIPMENT',
-      shipment_id,
-
-      customer_id: s.customer_id || null,
-      customer_name:
-        customerName ||
-        s.customer_name ||
-        s.client_name ||
-        null,
-
-      hbl_no:
-        an?.hbl_no ||
-        s.hbl_no ||
-        null,
-
-      // 搬入確認番号は invoice_headers に inbound_no カラムが無ければ追加必要
-      inbound_no:
-        s.inbound_no ||
-        an?.inbound_no ||
-        null,
-
-      // invoice_headers に commercial_invoice_no 追加済みなら
-      commercial_invoice_no:
-        s.invoice_no ||
-        s.commercial_invoice_no ||
-        null,
-
-      pcs_total:
-        anPcsTotal ||
-        null,
-
-      gw_total:
-        anGwTotal ||
-        an?.gw_total ||
-        null,
-
-      cbm_total:
-        anCbmTotal ||
-        an?.cbm_total ||
-        null,
-
-      remarks:
-        deliveryText || null,
-      
-      billing_month: billingMonth,
-      invoice_date: new Date().toISOString().slice(0, 10),
-      due_date: null,
-
-      job_no: s.job_no || s.control_no || null,
-      mbl_no: an?.mbl_no || s.mbl_no || null,
-      vessel: an?.vessel || s.vessel || null,
-      voyage: an?.voyage || s.voyage || null,
-      pol: an?.pol || s.pol || null,
-      pod: an?.pod || s.pod || null,
-      eta,
-
-      cargo_summary: an?.body_description || s.cargo_summary || s.item_name || null,
-      
-      
-      package_unit:
-        containerLines[0]?.unit ||
-        containerLines[0]?.package_unit ||
-        containerLines[0]?.pkg_unit ||
-        null,
-
-      status: 'draft'
-    };
-
-    const { data: header, error: hErr } = await supabase
-      .from('invoice_headers')
-      .insert(headerPayload)
-      .select('*')
-      .single();
-
-    if (hErr) throw hErr;
-
-    const { data: charges, error: chErr } = await supabase
-  .from('shipment_charges')
-  .select('*')
-  .eq('shipment_id', shipment_id)
-  .order('created_at', { ascending: true });
-
-if (chErr) throw chErr;
-
-const invoiceLines = (charges || []).map((c, idx) => {
-  const currency = c.currency || 'JPY';
-
-  const foreignAmount =
-    toNumber(c.foreign_amount || c.amount_foreign || c.amount || 0);
-
-  const rate =
-    toNumber(c.exchange_rate || c.rate || 0);
-
-  const billingAmountNet =
-    currency !== 'JPY' && foreignAmount && rate
-      ? Math.round(foreignAmount * rate)
-      : toNumber(
-          c.amount_jpy ||
-          c.billing_amount_net ||
-          c.amount ||
-          0
-        );
-
-  const taxType =
-    c.tax_type ||
-    c.billing_tax_type ||
-    'taxable';
-
-  return {
-    invoice_id: header.invoice_id,
-    line_no: idx + 1,
-
-    item_name:
-      c.charge_name ||
-      c.item_name ||
-      c.description ||
-      '未設定',
-
-    description:
-      c.description ||
-      c.charge_name ||
-      null,
-
-    show_on_invoice: true,
-
-    billing_amount_net: billingAmountNet,
-    billing_tax_type: taxType,
-    billing_tax_rate:
-      taxType === 'taxable' ? 0.1 : 0,
-
-    currency,
-    foreign_unit_price:
-      currency !== 'JPY' ? foreignAmount : null,
-
-    exchange_rate:
-      currency !== 'JPY' ? rate : null,
-
-    line_note:
-      c.memo ||
-      c.note ||
-      null
-  };
-});
-
-if (invoiceLines.length) {
-  const { error: lineErr } = await supabase
-    .from('invoice_lines')
-    .insert(invoiceLines);
-
-  if (lineErr) throw lineErr;
-}
-
-    res.json({
-      ok: true,
-      already_exists: false,
-      invoice_id: header.invoice_id,
-      header
-    });
-  } catch (err) {
-    console.error('[invoice/create-from-shipment] error:', err);
-    res.status(500).json({ ok: false, error: err.message || String(err) });
-  }
-});
 app.post('/api/invoice/save', async (req, res) => {
   try {
     const {
