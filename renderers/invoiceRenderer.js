@@ -528,19 +528,21 @@ tbody tr.blank td{
     </div>
 
     <div class="meta-table">
-      <div class="meta-row">
-        <div class="meta-label">請求日</div>
-        <div class="meta-value">${formatJaDate(header.invoice_date)}</div>
-      </div>
-      <div class="meta-row">
-        <div class="meta-label">請求書番号</div>
-        <div class="meta-value">${esc(displayInvoiceNo)}</div>
-      <div class="meta-row">
-        <div class="meta-label">作業名</div>
-        <div class="meta-value">${esc(workName)}</div>
-      </div>
-    </div>
+  <div class="meta-row">
+    <div class="meta-label">請求日</div>
+    <div class="meta-value">${formatJaDate(header.invoice_date)}</div>
   </div>
+
+  <div class="meta-row">
+    <div class="meta-label">請求書番号</div>
+    <div class="meta-value">${esc(displayInvoiceNo)}</div>
+  </div>
+
+  <div class="meta-row">
+    <div class="meta-label">作業名</div>
+    <div class="meta-value">${esc(workName)}</div>
+  </div>
+</div>
 
   <div class="amount-tax">
     <div class="amount-box">
