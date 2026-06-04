@@ -131,7 +131,7 @@ const salesGross =
   </tr>
 `).join('');
 
-  const blankRows = Math.max(0, 26 - invoiceLines.length);
+  const blankRows = Math.max(0, 25 - invoiceLines.length);
 
 const blankRowsHtml = Array.from({ length: blankRows }).map(() => `
   <tr class="blank-row">
@@ -510,17 +510,10 @@ tbody tr.blank td{
 }
 
 @media print{
-  *{
-    -webkit-print-color-adjust:exact !important;
-    print-color-adjust:exact !important;
-  }
-
   html,
   body{
     margin:0;
     padding:0;
-    width:210mm;
-    height:297mm;
     background:white;
   }
 
@@ -531,11 +524,9 @@ tbody tr.blank td{
   .sheet{
     margin:0;
     width:210mm;
-    height:297mm;
-    min-height:0;
-    padding:6mm 8mm;
+    min-height:auto;
+    padding:5mm 7mm;
     box-shadow:none;
-    overflow:hidden;
   }
 }
 
