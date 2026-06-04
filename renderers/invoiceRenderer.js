@@ -166,7 +166,7 @@ body{
 .sheet{
   outline:1px solid red;
 }
-  
+
 :root{
   --brand:#E0CDC6;
   --brand-dark:#8A6F66;
@@ -502,13 +502,22 @@ tbody tr.blank td{
 }
 
 @media print{
-  body{background:white}
-  .topbar{display:none}
+  body{
+    background:white;
+  }
+
+  .topbar{
+    display:none;
+  }
+
   .sheet{
     margin:0;
-    width:auto;
+    width:210mm;
     min-height:auto;
     padding:0;
+
+    transform:scale(0.95);
+    transform-origin:top left;
   }
 }
 
