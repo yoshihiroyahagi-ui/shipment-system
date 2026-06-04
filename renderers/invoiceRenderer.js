@@ -163,10 +163,6 @@ body{
   background:#eee;
 }
 
-.sheet{
-  outline:1px solid red;
-}
-
 :root{
   --brand:#E0CDC6;
   --brand-dark:#8A6F66;
@@ -316,8 +312,14 @@ th{
   padding:1.8mm 2.2mm;
 }
 .meta-label{
-  background:#F4ECE8;
+  background:#D8B8A8;
+
+  border-left:3px solid #B78D78;
+
   font-weight:800;
+
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
 }
 .amount-tax{
   margin-top:4mm;
@@ -334,10 +336,11 @@ th{
 }
 
 .amount-label{
-  background:#F4ECE8;
+  background:#D8B8A8;
+  border-left:3px solid #B78D78;
   font-weight:900;
-  display:flex;
-  align-items:center;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
   padding:0 2mm;
 }
 
@@ -382,10 +385,11 @@ th{
 }
 
 .tax-label{
-  background:#F4ECE8;
+  background:#D8B8A8;
+  border-left:3px solid #B78D78;
   font-weight:700;
-  display:flex;
-  align-items:center;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
   padding:1.3mm 2mm;
 }
 
@@ -408,6 +412,7 @@ th{
 }
 .cargo-title{
   font-weight:900;
+  color:#6A4D40;
   margin-bottom:2mm;
 }
 .cargo-grid{
@@ -446,11 +451,14 @@ table{
 }
 
 th{
-  background:var(--brand-soft);
+  background:#E0CDC6;
   color:#3d2c26;
   padding:1.6mm 1.4mm;
   border-bottom:1px solid var(--line);
   text-align:center;
+
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
 }
 
 td{
@@ -681,8 +689,7 @@ tbody tr.blank td{
 
   <div class="bank">
     <strong>お振込先</strong><br>
-    三井住友銀行　日本橋東支店　普通 7828377　ｶ)ﾋﾞｼﾞﾈｽﾗﾎﾞ<br>
-    ※振込手数料は貴社にてご負担をお願いいたします。
+    三井住友銀行　日本橋東支店　普通 7828377　ｶ)ﾋﾞｼﾞﾈｽﾗﾎﾞ    ※振込手数料は貴社にてご負担をお願いいたします。
   </div>
 
   <div class="note">
