@@ -519,28 +519,29 @@ tbody tr.blank td{
   </div>
 
   <div class="bill-area">
-    <div>
-      <div class="billto-name">${esc(header.customer_name || '')} 御中</div>
-      <div class="greeting">
-        いつも御利用頂き、誠に有難う御座います。下記の通り御請求申し上げます。<br>
-        お支払期限：${formatJaDate(dueDate)}
-      </div>
+  <div>
+    <div class="billto-name">${esc(header.customer_name || '')} 御中</div>
+    <div class="greeting">
+      いつも御利用頂き、誠に有難う御座います。下記の通り御請求申し上げます。<br>
+      お支払期限：${formatJaDate(dueDate)}
+    </div>
+  </div>
+
+  <div class="meta-table">
+    <div class="meta-row">
+      <div class="meta-label">請求日</div>
+      <div class="meta-value">${formatJaDate(header.invoice_date)}</div>
     </div>
 
-    <div class="meta-table">
-  <div class="meta-row">
-    <div class="meta-label">請求日</div>
-    <div class="meta-value">${formatJaDate(header.invoice_date)}</div>
-  </div>
+    <div class="meta-row">
+      <div class="meta-label">請求書番号</div>
+      <div class="meta-value">${esc(displayInvoiceNo)}</div>
+    </div>
 
-  <div class="meta-row">
-    <div class="meta-label">請求書番号</div>
-    <div class="meta-value">${esc(displayInvoiceNo)}</div>
-  </div>
-
-  <div class="meta-row">
-    <div class="meta-label">作業名</div>
-    <div class="meta-value">${esc(workName)}</div>
+    <div class="meta-row">
+      <div class="meta-label">作業名</div>
+      <div class="meta-value">${esc(workName)}</div>
+    </div>
   </div>
 </div>
 
