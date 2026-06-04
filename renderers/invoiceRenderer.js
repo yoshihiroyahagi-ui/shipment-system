@@ -153,7 +153,7 @@ const blankRowsHtml = Array.from({ length: blankRows }).map(() => `
 <style>
 @page{
   size:A4;
-  margin:6mm 7mm;
+  margin:4mm;
 }
 *{box-sizing:border-box}
 body{
@@ -162,6 +162,11 @@ body{
   color:#111;
   background:#eee;
 }
+
+.sheet{
+  outline:1px solid red;
+}
+  
 :root{
   --brand:#E0CDC6;
   --brand-dark:#8A6F66;
@@ -397,7 +402,7 @@ th{
   margin-top:4mm;
   border:1px solid var(--line);
   border-radius:6px;
-  padding:2.5mm 4mm;
+  padding:2mm 3mm;
   background:#fff;
   font-size:9.8px;
 }
@@ -484,7 +489,7 @@ tbody tr.blank td{
   border:none;
   border-top:1px solid var(--line);
   border-radius:0;
-  padding:3mm 4mm;
+  padding:2mm 3mm;
   font-size:10.5px;
   line-height:1.6;
   background:#fff;
