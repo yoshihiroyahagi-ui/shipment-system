@@ -292,6 +292,15 @@ th{
   overflow:hidden;
   font-size:10.5px;
 }
+
+.meta-table .meta-row:last-child{
+  border-bottom:none;
+}
+
+.meta-table{
+  align-self:start;
+}
+
 .meta-row{
   display:grid;
   grid-template-columns:22mm 1fr;
@@ -316,15 +325,24 @@ th{
   display:grid;
   grid-template-columns:32mm 1fr;
   height:10mm;
-  align-items:center;
+  align-items:stretch;
 }
+
 .amount-label{
   background:#F4ECE8;
   font-weight:900;
+  display:flex;
+  align-items:center;
+  padding:0 2mm;
 }
+
 .amount-value{
   font-size:19px;
+  padding-left:4mm;
   padding-right:4mm;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
 }
 .tax-summary{
   font-size:9.5px;
@@ -343,9 +361,9 @@ th{
 
 .tax-cell{
   display:grid;
-  grid-template-columns:1fr 24mm;
-  align-items:center;
-  padding:1.3mm 2mm;
+  grid-template-columns:24mm 1fr;
+  align-items:stretch;
+  padding:0;
   white-space:nowrap;
   border-bottom:1px solid var(--line);
 }
@@ -358,14 +376,23 @@ th{
   border-bottom:none;
 }
 
-.tax-value{
-  text-align:right;
-  font-weight:900;
-}
 .tax-label{
   background:#F4ECE8;
   font-weight:700;
+  display:flex;
+  align-items:center;
+  padding:1.3mm 2mm;
 }
+
+.tax-value{
+  text-align:right;
+  font-weight:900;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  padding:1.3mm 2mm;
+}
+  
 .cargo{
   margin-top:4mm;
   border:1px solid var(--line);
