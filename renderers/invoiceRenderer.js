@@ -524,8 +524,8 @@ tbody tr.blank td{
     min-height:auto;
     padding:0;
 
-    transform:scale(0.90);
-    transform-origin:top left;
+    transform:scale(0.100);
+    transform-origin:center center;
   }
 }
 

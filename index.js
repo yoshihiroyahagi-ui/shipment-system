@@ -3933,11 +3933,19 @@ app.get('/doc/:docType/pdf', async (req, res) => {
       waitUntil: 'networkidle0'
     });
 
+    await page.emulateMediaType('print');
+
     const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      preferCSSPageSize: true
-    });
+  format: 'A4',
+  printBackground: true,
+  preferCSSPageSize: true,
+  margin: {
+    top: '0mm',
+    right: '0mm',
+    bottom: '0mm',
+    left: '0mm'
+  }
+});
 
     res.setHeader('Content-Type', 'application/pdf');
 
