@@ -56,6 +56,19 @@ export async function resolveInvoicePayloadByInvoiceId(invoiceId) {
   if (hErr) throw hErr;
   if (!header) throw new Error('invoice not found');
 
+  let firstShipmentLine = null;
+
+if (header.shipment_id) {
+  const { data: line } = await supabase
+    .from('shipment_lines')
+    .select('commodity, commodity_note')
+    .eq('shipment_id', header.shipment_id)
+    .limit(1)
+    .maybeSingle();
+
+  firstShipmentLine = line || null;
+}
+
   const { data: invoiceLines = [], error: lErr } = await supabase
     .from('invoice_lines')
     .select('*')
@@ -76,6 +89,7 @@ export async function resolveInvoicePayloadByInvoiceId(invoiceId) {
   return {
     header,
     invoiceLines,
-    payableLines
+    payableLines,
+    firstShipmentLine
   };
 }

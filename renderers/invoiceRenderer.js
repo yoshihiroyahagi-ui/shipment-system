@@ -39,7 +39,7 @@ function getNextMonthEnd(dateValue) {
 }
 
 export function renderInvoiceHtml(payload) {
-  const { header, invoiceLines } = payload;
+  const { header, invoiceLines, firstShipmentLine } = payload;
 
   const dueDate =
   header.due_date ||
@@ -73,6 +73,22 @@ const salesGross =
     header.job_no ||
     header.invoice_no ||
     header.commercial_invoice_no ||
+    '';
+
+  const workName =
+    header.cargo_summary ||
+    '';
+
+  const cargoName =
+  firstShipmentLine?.commodity ||
+  firstShipmentLine?.commodity_note ||
+  header.cargo_summary ||
+  '';
+
+  const etd =
+    header.etd ||
+    header.atd ||
+    header.on_board_date ||
     '';
 
   const taxableTotal = invoiceLines
@@ -150,61 +166,66 @@ body{
 }
 .header{
   display:grid;
-  grid-template-columns:1fr 82mm;
-  gap:12mm;
+  grid-template-columns:1fr 96mm;
+  gap:8mm;
   align-items:start;
   border-bottom:2px solid #111;
-  padding-bottom:6mm;
+  padding-bottom:4mm;
 }
 .title{
   font-size:30px;
   font-weight:900;
   letter-spacing:.35em;
-  margin-top:5mm;
+  margin-top:3mm;
+}
+.title-sub{
+  margin-top:4mm;
+  font-size:11px;
+  letter-spacing:0;
+  font-weight:700;
 }
 .company-box{
-  display:grid;
-  grid-template-columns:1fr 22mm;
-  gap:6mm;
-  align-items:start;
+  position:relative;
+  margin-left:-10mm;
+  padding-right:20mm;
+  min-height:28mm;
 }
 .company-main{
   display:grid;
   grid-template-columns:14mm 1fr;
-  gap:4mm;
-  align-items:center;
+  gap:3mm;
+  align-items:start;
+  position:relative;
+  z-index:1;
 }
-.logo-mark{
+.logo-img{
   width:13mm;
-  height:13mm;
-  border-radius:4mm;
-  background:var(--brand);
-  display:grid;
-  place-items:center;
-  font-weight:900;
-  color:#5c443b;
+  height:auto;
+  margin-top:1mm;
 }
 .company-name{
-  font-size:17px;
+  font-size:16px;
   font-weight:900;
+  white-space:nowrap;
+  line-height:1.2;
 }
 .company-detail{
-  grid-column:1/-1;
-  font-size:10.5px;
-  line-height:1.55;
-  margin-top:2mm;
+  grid-column:2;
+  font-size:9.5px;
+  line-height:1.35;
+  margin-top:1mm;
+  white-space:nowrap;
 }
-.stamp{
-  width:18mm;
-  height:18mm;
-  border:2px solid #b3261e;
-  color:#b3261e;
-  border-radius:50%;
-  display:grid;
-  place-items:center;
-  font-weight:900;
-  opacity:.75;
+.company-stamp{
+  position:absolute;
+  right:0;
+  top:1mm;
+  width:22mm;
+  opacity:.72;
+  transform:rotate(-7deg);
+  z-index:2;
 }
+
 .bill-area{
   display:grid;
   grid-template-columns:1fr 58mm;
@@ -225,70 +246,50 @@ body{
 }
 .meta-table{
   border:1px solid #111;
-  border-radius:5px;
+  border-radius:4px;
   overflow:hidden;
-  font-size:11.5px;
+  font-size:10.5px;
 }
 .meta-row{
   display:grid;
-  grid-template-columns:24mm 1fr;
+  grid-template-columns:22mm 1fr;
   border-bottom:1px solid #111;
 }
-.meta-row:last-child{border-bottom:none}
-.meta-label{
-  background:var(--brand-soft);
-  padding:2.5mm;
-  font-weight:800;
-}
+.meta-label,
 .meta-value{
-  padding:2.5mm;
-  text-align:right;
-  font-weight:800;
+  padding:1.8mm 2.2mm;
 }
+
 .amount-tax{
-  margin-top:5mm;
+  margin-top:4mm;
   display:grid;
-  grid-template-columns:1fr 78mm;
+  grid-template-columns:1fr 84mm;
   gap:5mm;
 }
 .amount-box{
   border:2px solid #111;
   display:grid;
-  grid-template-columns:36mm 1fr;
-  height:14mm;
+  grid-template-columns:32mm 1fr;
+  height:10mm;
   align-items:center;
 }
 .amount-label{
-  background:#111;
-  color:white;
-  height:100%;
-  display:grid;
-  place-items:center;
-  font-size:12px;
-  font-weight:900;
+  font-size:10.5px;
 }
 .amount-value{
-  font-size:22px;
-  font-weight:900;
-  text-align:right;
-  padding-right:5mm;
+  font-size:19px;
+  padding-right:4mm;
 }
 .tax-summary{
-  border:1px solid var(--line);
-  border-radius:5px;
-  overflow:hidden;
-  font-size:10.5px;
+  font-size:9.5px;
 }
 .tax-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
 }
 .tax-cell{
-  display:flex;
-  justify-content:space-between;
-  gap:4mm;
-  padding:1.8mm 2.4mm;
-  border-bottom:1px solid var(--line);
+  padding:1.3mm 2mm;
+  white-space:nowrap;
 }
 .tax-cell:nth-child(odd){
   border-right:1px solid var(--line);
@@ -304,12 +305,9 @@ body{
   font-weight:900;
 }
 .cargo{
-  margin-top:5mm;
-  border:1px solid var(--line);
-  border-radius:6px;
-  padding:3mm 4mm;
-  background:#fff;
-  font-size:10.7px;
+  margin-top:4mm;
+  padding:2.5mm 4mm;
+  font-size:9.8px;
 }
 .cargo-title{
   font-weight:900;
@@ -318,10 +316,11 @@ body{
 .cargo-grid{
   display:grid;
   grid-template-columns:1fr 1fr 1fr;
-  gap:3mm 6mm;
+  gap:2.5mm 5mm;
 }
 .cargo-item{
-  line-height:1.45;
+  min-width:0;
+  line-height:1.35;
 }
 .cargo-label{
   color:#666;
@@ -330,27 +329,20 @@ body{
 }
 .cargo-value{
   font-weight:700;
+  white-space:nowrap;
 }
 .invoice-table{
-  margin-top:5mm;
+  margin-top:4mm;
 }
 table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:10.5px;
+  font-size:9.6px;
 }
 th{
-  background:var(--brand);
-  color:#3d2c26;
-  padding:2.1mm 1.8mm;
-  border-top:1px solid #111;
-  border-bottom:1px solid #111;
-  text-align:center;
+  padding:1.6mm 1.4mm;
 }
 td{
-  padding:1.7mm 1.8mm;
-  border-bottom:1px solid #e6e0dd;
-  vertical-align:middle;
+  padding:1.15mm 1.4mm;
+  border-bottom:1px solid #eee;
 }
 td.no,td.num{
   text-align:right;
@@ -396,30 +388,6 @@ tbody tr.blank td{
   }
 }
 
-.logo-img{
-  width:52px;
-  height:auto;
-}
-
-.company-box{
-  position:relative;
-}
-
-.company-stamp{
-  position:absolute;
-
-  right:-10px;
-  top:10px;
-
-  width:90px;
-
-  opacity:.7;
-
-  transform:rotate(-8deg);
-
-  z-index:10;
-}
-
 </style>
 </head>
 <body>
@@ -435,6 +403,7 @@ tbody tr.blank td{
   <div class="header">
     <div>
       <div class="title">請 求 書</div>
+      <div class="title-sub">作業名：${esc(workName)}</div>
     </div>
 
     <div class="company-box">
@@ -463,14 +432,14 @@ tbody tr.blank td{
       <div class="billto-name">${esc(header.customer_name || '')} 御中</div>
       <div class="greeting">
         いつも御利用頂き、誠に有難う御座います。下記の通り御請求申し上げます。<br>
-        お支払期限：${esc(dueDate)}
+        お支払期限：${formatJaDate(dueDate)}
       </div>
     </div>
 
     <div class="meta-table">
       <div class="meta-row">
         <div class="meta-label">請求日</div>
-        <div class="meta-value">${esc(header.invoice_date || '')}</div>
+        <div class="meta-value">${formatJaDate(header.invoice_date)}</div>
       </div>
       <div class="meta-row">
         <div class="meta-label">請求書番号</div>
@@ -511,13 +480,14 @@ tbody tr.blank td{
     <div class="cargo-title">出荷情報</div>
     <div class="cargo-grid">
       <div class="cargo-item">
-        <div class="cargo-label">Job No / HBL</div>
-        <div class="cargo-value">${esc(header.job_no || '')} / ${esc(header.hbl_no || '')}</div>
-      </div>
-      <div class="cargo-item">
-        <div class="cargo-label">MBL / ETA</div>
-        <div class="cargo-value">${esc(header.mbl_no || '')} / ${esc(header.eta || '')}</div>
-      </div>
+  <div class="cargo-label">HBL / MBL</div>
+  <div class="cargo-value">${esc(header.hbl_no || '')} / ${esc(header.mbl_no || '')}</div>
+</div>
+
+<div class="cargo-item">
+  <div class="cargo-label">ETD / ETA</div>
+  <div class="cargo-value">${esc(etd)} / ${esc(header.eta || '')}</div>
+</div>
       <div class="cargo-item">
         <div class="cargo-label">Vessel / Voyage</div>
         <div class="cargo-value">${esc(header.vessel || '')} / ${esc(header.voyage || '')}</div>
@@ -544,7 +514,7 @@ tbody tr.blank td{
       </div>
       <div class="cargo-item">
         <div class="cargo-label">品名</div>
-        <div class="cargo-value">${esc(header.cargo_summary || '')}</div>
+        <div class="cargo-value">${esc(cargoName)}</div>
       </div>
     </div>
   </div>
@@ -563,18 +533,6 @@ tbody tr.blank td{
       </thead>
       <tbody>
         ${rowsHtml}
-        <tr class="total-row">
-          <td colspan="5" class="total-label">小計</td>
-          <td class="total-amount">¥${yen(salesNet)}</td>
-        </tr>
-        <tr class="total-row">
-          <td colspan="5" class="total-label">消費税</td>
-          <td class="total-amount">¥${yen(salesTax)}</td>
-        </tr>
-        <tr class="total-row">
-          <td colspan="5" class="total-label">合計</td>
-          <td class="total-amount">¥${yen(salesGross)}</td>
-        </tr>
       </tbody>
     </table>
   </div>
