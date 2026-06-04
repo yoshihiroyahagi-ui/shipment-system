@@ -264,7 +264,7 @@ th{
   top:5mm;
   width:20mm;
   opacity:.68;
-  transform:rotate(-7deg);
+  transform:rotate(0deg);
   z-index:2;
 }
 
@@ -392,7 +392,7 @@ th{
   justify-content:flex-end;
   padding:1.3mm 2mm;
 }
-  
+
 .cargo{
   margin-top:4mm;
   border:1px solid var(--line);
