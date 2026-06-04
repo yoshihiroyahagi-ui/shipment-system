@@ -131,7 +131,7 @@ const salesGross =
   </tr>
 `).join('');
 
-  const blankRows = Math.max(0, 24 - invoiceLines.length);
+  const blankRows = Math.max(0, 22 - invoiceLines.length);
 
 const blankRowsHtml = Array.from({ length: blankRows }).map(() => `
   <tr class="blank-row">
