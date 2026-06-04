@@ -38,6 +38,22 @@ function getNextMonthEnd(dateValue) {
   return end.toISOString().slice(0, 10);
 }
 
+function formatJaDate(value) {
+  if (!value) return '';
+
+  const d = new Date(value);
+
+  if (Number.isNaN(d.getTime())) {
+    return value;
+  }
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+
+  return `${yyyy}年${mm}月${dd}日`;
+}
+
 export function renderInvoiceHtml(payload) {
   const { header, invoiceLines, firstShipmentLine } = payload;
 
