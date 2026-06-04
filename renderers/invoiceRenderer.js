@@ -153,7 +153,7 @@ const blankRowsHtml = Array.from({ length: blankRows }).map(() => `
 <style>
 @page{
   size:A4;
-  margin:4mm;
+  margin:0;
 }
 *{box-sizing:border-box}
 body{
@@ -510,22 +510,32 @@ tbody tr.blank td{
 }
 
 @media print{
+  *{
+    -webkit-print-color-adjust:exact !important;
+    print-color-adjust:exact !important;
+  }
+
+  html,
   body{
+    margin:0;
+    padding:0;
+    width:210mm;
+    height:297mm;
     background:white;
   }
 
   .topbar{
-    display:none;
+    display:none !important;
   }
 
   .sheet{
     margin:0;
     width:210mm;
-    min-height:auto;
-    padding:0;
-
-    transform:scale(0.100);
-    transform-origin:center center;
+    height:297mm;
+    min-height:0;
+    padding:6mm 8mm;
+    box-shadow:none;
+    overflow:hidden;
   }
 }
 
