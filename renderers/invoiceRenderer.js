@@ -691,11 +691,10 @@ tbody tr.blank td{
   <div class="bank">
     <strong>お振込先</strong><br>
     三井住友銀行　日本橋東支店　普通 7828377　ｶ)ﾋﾞｼﾞﾈｽﾗﾎﾞ    ※振込手数料は貴社にてご負担をお願いいたします。
-  </div>
-
-  <div class="note">
+   <div class="note">
     備考：本請求書はinvoice_headers / invoice_lines のデータを正本として作成しています。
   </div>
+</div>
 </section>
 </body>
 </html>`;
