@@ -31,6 +31,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+app.use(
+  '/assets',
+  express.static(
+    path.join(process.cwd(), 'public/assets')
+  )
+);
+
 app.use('/api/invoice', invoiceRouter);
 
 app.use(express.json({ limit: '20mb' }));
