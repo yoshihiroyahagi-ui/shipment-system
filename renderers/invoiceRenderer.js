@@ -204,13 +204,14 @@ body{
   gap:8mm;
   align-items:start;
   border-bottom:2px solid #111;
+  padding-top:3mm;
   padding-bottom:4mm;
 }
 .title{
   font-size:30px;
   font-weight:900;
   letter-spacing:.35em;
-  margin-top:3mm;
+  margin-top:6mm;
 }
 .title-sub{
   margin-top:4mm;
