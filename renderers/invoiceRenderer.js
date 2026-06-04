@@ -120,15 +120,30 @@ const salesGross =
     .reduce((sum, l) => sum + toNumber(l.billing_amount_net), 0);
 
   const rowsHtml = invoiceLines.map((l, idx) => `
-    <tr>
-      <td class="num">${idx + 1}</td>
-      <td>${esc(l.item_name || '')}</td>
-      <td>${esc(taxLabel(l.billing_tax_type))}</td>
-      <td class="num">1</td>
-      <td class="num">${yen(l.billing_amount_net)}</td>
-      <td class="num">${yen(l.billing_amount_net)}</td>
-    </tr>
-  `).join('');
+  <tr>
+    <td class="no">${idx + 1}</td>
+    <td>${esc(l.item_name || '')}</td>
+    <td class="center">${esc(taxLabel(l.billing_tax_type))}</td>
+    <td class="num">1</td>
+    <td class="num">${yen(l.billing_amount_net)}</td>
+    <td class="num">${yen(l.billing_amount_net)}</td>
+    <td>${esc(l.line_note || l.memo || '')}</td>
+  </tr>
+`).join('');
+
+  const blankRows = Math.max(0, 26 - invoiceLines.length);
+
+const blankRowsHtml = Array.from({ length: blankRows }).map(() => `
+  <tr class="blank-row">
+    <td>&nbsp;</td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+`).join('');
 
     return `<!doctype html>
 <html lang="ja">
@@ -179,6 +194,8 @@ body{
   margin:8px auto;
   background:white;
   padding:8mm 10mm;
+  display:flex;
+  flex-direction:column;
 }
 .header{
   display:grid;
@@ -200,11 +217,13 @@ body{
   letter-spacing:0;
   font-weight:700;
 }
-.company-box{
-  position:relative;
-  margin-left:-10mm;
-  padding-right:20mm;
-  min-height:28mm;
+th{
+  background:var(--brand-soft);
+  color:#3d2c26;
+  padding:1.6mm 1.4mm;
+  border-top:1px solid #111;
+  border-bottom:1px solid #111;
+  text-align:center;
 }
 .company-main{
   display:grid;
@@ -234,10 +253,10 @@ body{
 }
 .company-stamp{
   position:absolute;
-  right:0;
+  right:2mm;
   top:1mm;
-  width:22mm;
-  opacity:.72;
+  width:20mm;
+  opacity:.68;
   transform:rotate(-7deg);
   z-index:2;
 }
@@ -299,30 +318,49 @@ body{
 .tax-summary{
   font-size:9.5px;
 }
+.tax-summary{
+  border:1px solid var(--line);
+  border-radius:5px;
+  overflow:hidden;
+  font-size:9.5px;
+}
+
 .tax-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
 }
+
 .tax-cell{
+  display:grid;
+  grid-template-columns:1fr 24mm;
+  align-items:center;
   padding:1.3mm 2mm;
   white-space:nowrap;
+  border-bottom:1px solid var(--line);
 }
+
 .tax-cell:nth-child(odd){
   border-right:1px solid var(--line);
 }
+
 .tax-cell:nth-last-child(-n+2){
   border-bottom:none;
+}
+
+.tax-value{
+  text-align:right;
+  font-weight:900;
 }
 .tax-label{
   color:#555;
   font-weight:700;
 }
-.tax-value{
-  font-weight:900;
-}
 .cargo{
   margin-top:4mm;
+  border:1px solid var(--line);
+  border-radius:6px;
   padding:2.5mm 4mm;
+  background:#fff;
   font-size:9.8px;
 }
 .cargo-title{
@@ -347,18 +385,35 @@ body{
   font-weight:700;
   white-space:nowrap;
 }
-.invoice-table{
+.invoice-frame{
   margin-top:4mm;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
 }
+
+.invoice-table{
+  margin-top:0;
+}
+
 table{
+  width:100%;
+  border-collapse:collapse;
   font-size:9.6px;
 }
+
 th{
+  background:var(--brand-soft);
+  color:#3d2c26;
   padding:1.6mm 1.4mm;
+  border-bottom:1px solid var(--line);
+  text-align:center;
 }
+
 td{
   padding:1.15mm 1.4mm;
   border-bottom:1px solid #eee;
+  vertical-align:middle;
 }
 td.no,td.num{
   text-align:right;
@@ -380,19 +435,29 @@ tbody tr.blank td{
   text-align:right;
   border-top:1px solid #111;
 }
+
+.blank-row td{
+  height:5.2mm;
+  color:transparent;
+}
+
 .bank{
-  margin-top:5mm;
-  border:1px solid var(--line);
-  border-radius:6px;
+  margin-top:0;
+  border:none;
+  border-top:1px solid var(--line);
+  border-radius:0;
   padding:3mm 4mm;
   font-size:10.5px;
   line-height:1.6;
+  background:#fff;
 }
+
 .note{
-  margin-top:3mm;
+  margin-top:2mm;
   font-size:9.5px;
   color:#555;
 }
+
 @media print{
   body{background:white}
   .topbar{display:none}
@@ -535,20 +600,24 @@ tbody tr.blank td{
     </div>
   </div>
 
+<div class="invoice-frame">
+
   <div class="invoice-table">
     <table>
       <thead>
         <tr>
-          <th style="width:9mm">No</th>
-          <th>項目</th>
-          <th style="width:24mm">税区分</th>
-          <th style="width:16mm">数量</th>
-          <th style="width:26mm">単価</th>
-          <th style="width:30mm">金額</th>
+            <th style="width:8mm">No</th>
+            <th>項目</th>
+            <th style="width:22mm">税区分</th>
+            <th style="width:14mm">数量</th>
+            <th style="width:24mm">単価</th>
+            <th style="width:26mm">金額</th>
+            <th style="width:32mm">備考</th>
         </tr>
       </thead>
       <tbody>
         ${rowsHtml}
+        ${blankRowsHtml}
       </tbody>
     </table>
   </div>
