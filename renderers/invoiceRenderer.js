@@ -395,6 +395,31 @@ tbody tr.blank td{
     padding:0;
   }
 }
+
+.logo-img{
+  width:52px;
+  height:auto;
+}
+
+.company-box{
+  position:relative;
+}
+
+.company-stamp{
+  position:absolute;
+
+  right:-10px;
+  top:10px;
+
+  width:90px;
+
+  opacity:.7;
+
+  transform:rotate(-8deg);
+
+  z-index:10;
+}
+
 </style>
 </head>
 <body>
@@ -414,7 +439,10 @@ tbody tr.blank td{
 
     <div class="company-box">
       <div class="company-main">
-        <div class="logo-mark">BL</div>
+        <img
+            class="logo-img"
+            src="https://portal.bizlabo-tokyo.com/assets/bizlabo-logo.png">
+      <div>
         <div class="company-name">株式会社ビジネスラボ</div>
         <div class="company-detail">
           〒103-0026 東京都中央区日本橋兜町2-13<br>
@@ -423,7 +451,10 @@ tbody tr.blank td{
           登録番号: T7010003027314
         </div>
       </div>
-      <div class="stamp">印</div>
+     </div>
+      <img
+        class="company-stamp"
+        src="https://portal.bizlabo-tokyo.com/assets/bizlabo-stamp.png">
     </div>
   </div>
 
@@ -431,7 +462,7 @@ tbody tr.blank td{
     <div>
       <div class="billto-name">${esc(header.customer_name || '')} 御中</div>
       <div class="greeting">
-        下記の通りご請求申し上げます。<br>
+        いつも御利用頂き、誠に有難う御座います。下記の通り御請求申し上げます。<br>
         お支払期限：${esc(dueDate)}
       </div>
     </div>
