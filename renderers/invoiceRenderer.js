@@ -251,10 +251,17 @@ th{
   margin-top:1mm;
   white-space:nowrap;
 }
+.company-box{
+  position:relative;
+  margin-left:-6mm;
+  padding-right:14mm;
+  min-height:24mm;
+  overflow:visible;
+}
 .company-stamp{
   position:absolute;
-  right:2mm;
-  top:1mm;
+  right:25mm;
+  top:5mm;
   width:20mm;
   opacity:.68;
   transform:rotate(-7deg);
@@ -294,7 +301,10 @@ th{
 .meta-value{
   padding:1.8mm 2.2mm;
 }
-
+.meta-label{
+  background:#F4ECE8;
+  font-weight:800;
+}
 .amount-tax{
   margin-top:4mm;
   display:grid;
@@ -309,7 +319,8 @@ th{
   align-items:center;
 }
 .amount-label{
-  font-size:10.5px;
+  background:#F4ECE8;
+  font-weight:900;
 }
 .amount-value{
   font-size:19px;
@@ -352,7 +363,7 @@ th{
   font-weight:900;
 }
 .tax-label{
-  color:#555;
+  background:#F4ECE8;
   font-weight:700;
 }
 .cargo{
@@ -484,7 +495,6 @@ tbody tr.blank td{
   <div class="header">
     <div>
       <div class="title">請 求 書</div>
-      <div class="title-sub">作業名：${esc(workName)}</div>
     </div>
 
     <div class="company-box">
@@ -525,6 +535,9 @@ tbody tr.blank td{
       <div class="meta-row">
         <div class="meta-label">請求書番号</div>
         <div class="meta-value">${esc(displayInvoiceNo)}</div>
+      <div class="meta-row">
+        <div class="meta-label">作業名</div>
+        <div class="meta-value">${esc(workName)}</div>
       </div>
     </div>
   </div>
