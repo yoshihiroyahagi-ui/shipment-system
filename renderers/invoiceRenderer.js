@@ -236,7 +236,7 @@ th{
 .company-main{
   display:grid;
   grid-template-columns:14mm 1fr;
-  gap:3mm;
+  gap:10mm;
   align-items:start;
   position:relative;
   z-index:1;
@@ -244,7 +244,6 @@ th{
 .logo-img{
   width:20mm;
   height:auto;
-  right:90mm;
   margin-top:1mm;
 }
 .company-name{
