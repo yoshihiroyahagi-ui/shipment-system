@@ -163,6 +163,12 @@ body{
   background:#eee;
 }
 
+/* 共通：印刷時の色飛び防止 */
+*{
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+
 :root{
   --brand:#E0CDC6;
   --brand-dark:#8A6F66;
@@ -315,19 +321,21 @@ th{
 .meta-label{
   background:#D8B8A8;
 
-  border-left:3px solid #B78D78;
-
+  border-left:none;
   font-weight:800;
 
   -webkit-print-color-adjust:exact;
   print-color-adjust:exact;
 }
+/* ご請求金額：幅を2/3程度にして縦中央 */
 .amount-tax{
   margin-top:4mm;
   display:grid;
-  grid-template-columns:1fr 84mm;
+  grid-template-columns:2fr 3fr;
   gap:5mm;
+  align-items:start;
 }
+
 .amount-box{
   border:2px solid #111;
   display:grid;
@@ -337,30 +345,31 @@ th{
 }
 
 .amount-label{
-  background:#D8B8A8;
-  border-left:3px solid #B78D78;
-  font-weight:900;
-  -webkit-print-color-adjust:exact;
-  print-color-adjust:exact;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   padding:0 2mm;
+  font-weight:900;
 }
 
 .amount-value{
   font-size:19px;
-  padding-left:4mm;
-  padding-right:4mm;
+  padding:0 4mm;
   display:flex;
   align-items:center;
   justify-content:flex-start;
+  font-weight:900;
 }
+  
 .tax-summary{
   font-size:9.5px;
 }
+/* tax box：少し大きく、罫線を太め */
 .tax-summary{
-  border:1px solid var(--line);
+  border:1.5px solid #B78D78;
   border-radius:5px;
   overflow:hidden;
-  font-size:9.5px;
+  font-size:9.8px;
 }
 
 .tax-grid{
@@ -374,11 +383,11 @@ th{
   align-items:stretch;
   padding:0;
   white-space:nowrap;
-  border-bottom:1px solid var(--line);
+  border-bottom:1.5px solid #B78D78;
 }
 
 .tax-cell:nth-child(odd){
-  border-right:1px solid var(--line);
+  border-right:1.5px solid #B78D78;
 }
 
 .tax-cell:nth-last-child(-n+2){
@@ -386,21 +395,19 @@ th{
 }
 
 .tax-label{
-  background:#D8B8A8;
-  border-left:3px solid #B78D78;
-  font-weight:700;
-  -webkit-print-color-adjust:exact;
-  print-color-adjust:exact;
-  padding:1.3mm 2mm;
+  display:flex;
+  align-items:center;
+  padding:1.5mm 2mm;
+  font-weight:800;
 }
 
 .tax-value{
-  text-align:right;
-  font-weight:900;
   display:flex;
   align-items:center;
   justify-content:flex-end;
-  padding:1.3mm 2mm;
+  padding:1.5mm 2mm;
+  text-align:right;
+  font-weight:900;
 }
 
 .cargo{
@@ -451,13 +458,14 @@ table{
   font-size:9.6px;
 }
 
+/* 明細ヘッダー：罫線色を他と統一 */
 th{
   background:#E0CDC6;
   color:#3d2c26;
   padding:1.6mm 1.4mm;
-  border-bottom:1px solid var(--line);
+  border-top:1px solid #B78D78;
+  border-bottom:1px solid #B78D78;
   text-align:center;
-
   -webkit-print-color-adjust:exact;
   print-color-adjust:exact;
 }
