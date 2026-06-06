@@ -244,6 +244,7 @@ th{
 .logo-img{
   width:20mm;
   height:auto;
+  right:90mm;
   margin-top:1mm;
 }
 .company-name{
