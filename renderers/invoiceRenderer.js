@@ -242,7 +242,7 @@ th{
   z-index:1;
 }
 .logo-img{
-  width:13mm;
+  width:20mm;
   height:auto;
   margin-top:1mm;
 }
