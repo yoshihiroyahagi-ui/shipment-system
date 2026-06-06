@@ -460,7 +460,7 @@ table{
 
 /* 明細ヘッダー：罫線色を他と統一 */
 th{
-  background:#E0CDC6;
+  background:#B78D78;
   color:#3d2c26;
   padding:1.6mm 1.4mm;
   border-top:1px solid #B78D78;
