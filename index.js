@@ -5246,6 +5246,48 @@ app.get('/api/invoice/render-html', async (req, res) => {
     res.status(500).send(err.message || String(err));
   }
 });
+app.post('/api/invoice/create-manual', async (req, res) => {
+  try {
+    const {
+      invoice_type = 'manual',
+      customer_name = '',
+      free_title = '',
+      billing_month = ''
+    } = req.body || {};
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert({
+        invoice_type,
+        source_type: 'manual',
+        source_id: null,
+        customer_name,
+        free_title,
+        cargo_summary: '',
+        invoice_date: today,
+        billing_month,
+        status: 'draft'
+      })
+      .select('invoice_id')
+      .single();
+
+    if (error) throw error;
+
+    res.json({
+      ok: true,
+      invoice_id: data.invoice_id
+    });
+
+  } catch (err) {
+    console.error('[create-manual invoice error]', err);
+    res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
