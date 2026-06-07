@@ -92,6 +92,7 @@ const salesGross =
     '';
 
   const workName =
+    header.free_title ||
     header.cargo_summary ||
     '';
 

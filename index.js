@@ -965,6 +965,11 @@ app.post('/api/invoice/save', async (req, res) => {
         payable_tax_amount: c.tax,
         payable_amount_gross: c.gross,
 
+        payable_currency: p.payable_currency || p.currency || 'JPY',
+        foreign_unit_price: p.foreign_unit_price || null,
+        exchange_rate: p.exchange_rate || null,
+        line_note: p.line_note || null,
+
         vendor_invoice_no: p.vendor_invoice_no || null,
         payment_date: p.payment_date || null,
 
