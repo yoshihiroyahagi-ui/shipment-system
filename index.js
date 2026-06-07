@@ -5258,7 +5258,7 @@ app.post('/api/invoice/create-manual', async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
 
     const { data, error } = await supabase
-      .from('invoices')
+      .from('invoice_headers')
       .insert({
         invoice_type,
         source_type: 'manual',
