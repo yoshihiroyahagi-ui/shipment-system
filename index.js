@@ -5294,6 +5294,46 @@ app.post('/api/invoice/create-manual', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/pdf', async (req, res) => {
+
+  const invoiceId = req.query.invoice_id;
+
+  const url =
+    `${BASE_URL}/api/invoice/render-html?invoice_id=${invoiceId}`;
+
+  const browser =
+    await puppeteer.launch({
+      headless: true
+    });
+
+  const page =
+    await browser.newPage();
+
+  await page.goto(url, {
+    waitUntil: 'networkidle0'
+  });
+
+  const pdf =
+    await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '10mm',
+        bottom: '10mm',
+        left: '10mm',
+        right: '10mm'
+      }
+    });
+
+  await browser.close();
+
+  res.setHeader(
+    'Content-Type',
+    'application/pdf'
+  );
+
+  res.send(pdf);
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
