@@ -58,6 +58,7 @@ export function renderInvoiceHtml(payload) {
   const { header, invoiceLines, firstShipmentLine } = payload;
 
   const dueDate =
+  header.payment_due_date ||
   header.due_date ||
   getNextMonthEnd(header.invoice_date);
 
