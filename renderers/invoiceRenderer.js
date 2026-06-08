@@ -125,7 +125,7 @@ const salesGross =
     <td class="no">${idx + 1}</td>
     <td>${esc(l.item_name || '')}</td>
     <td class="center">${esc(taxLabel(l.billing_tax_type))}</td>
-    <td class="num">1</td>
+    <td class="num">${esc([l.quantity, l.quantity_unit].filter(Boolean).join(' '))}</td>
     <td class="num">${yen(l.billing_amount_net)}</td>
     <td class="num">${yen(l.billing_amount_net)}</td>
     <td>${esc(l.line_note || l.memo || '')}</td>

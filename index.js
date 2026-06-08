@@ -894,6 +894,9 @@ app.post('/api/invoice/save', async (req, res) => {
         description: line.description || null,
         show_on_invoice: line.show_on_invoice !== false,
 
+        quantity: toNumber(line.quantity || 1),
+        quantity_unit: line.quantity_unit || null,
+
         billing_amount_net: c.net,
         billing_tax_type: billingTaxType,
         billing_tax_rate: billingTaxRate,
@@ -958,6 +961,9 @@ app.post('/api/invoice/save', async (req, res) => {
         vendor_id: p.vendor_id || null,
         vendor_name: p.vendor_name || null,
         payable_item_name: p.payable_item_name || p.item_name || null,
+
+        quantity: toNumber(p.quantity || 1),
+        quantity_unit: p.quantity_unit || null,
 
         payable_amount_net: c.net,
         payable_tax_type: payableTaxType,
