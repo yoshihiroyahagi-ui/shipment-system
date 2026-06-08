@@ -125,8 +125,9 @@ const salesGross =
     <td class="no">${idx + 1}</td>
     <td>${esc(l.item_name || '')}</td>
     <td class="center">${esc(taxLabel(l.billing_tax_type))}</td>
-    <td class="num">${esc([l.quantity, l.quantity_unit].filter(Boolean).join(' '))}</td>
-    <td class="num">${yen(l.billing_amount_net)}</td>
+    <td class="num">${esc(l.quantity || '')}</td>
+    <td>${esc(l.quantity_unit || '')}</td>
+    <td class="num">${esc(l.foreign_unit_price || '')}</td>
     <td class="num">${yen(l.billing_amount_net)}</td>
     <td>${esc(l.line_note || l.memo || '')}</td>
   </tr>
@@ -137,6 +138,7 @@ const salesGross =
 const blankRowsHtml = Array.from({ length: blankRows }).map(() => `
   <tr class="blank-row">
     <td>&nbsp;</td>
+    <td></td>
     <td></td>
     <td></td>
     <td></td>
@@ -686,7 +688,8 @@ tbody tr.blank td{
             <th>項目</th>
             <th style="width:22mm">税区分</th>
             <th style="width:14mm">数量</th>
-            <th style="width:24mm">単価</th>
+            <th style="width:18mm;">単位</th>
+            <th style="width:22mm">単価</th>
             <th style="width:26mm">金額</th>
             <th style="width:32mm">備考</th>
         </tr>
