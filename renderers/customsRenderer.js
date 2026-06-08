@@ -212,10 +212,9 @@ const descriptionText =
   .join('\n');
 
   const productInfo =
-  customs.product_info ||
-  customs.description_text ||
-  customs.free_text ||
-  '';
+    Array.isArray(customsData.descriptions)
+      ? customsData.descriptions.join('\n')
+      : '';
 
   const declarationAmount =
     shipment.declaration_amount ||
