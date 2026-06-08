@@ -5299,7 +5299,8 @@ app.get('/api/invoice/pdf', async (req, res) => {
   const invoiceId = req.query.invoice_id;
 
   const url =
-    `${BASE_URL}/api/invoice/render-html?invoice_id=${invoiceId}`;
+    `${req.protocol}://${req.get('host')}` +
+    `/api/invoice/render-html?invoice_id=${invoiceId}`;
 
   const browser =
     await puppeteer.launch({
