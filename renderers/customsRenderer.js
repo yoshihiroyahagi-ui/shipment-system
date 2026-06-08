@@ -129,12 +129,18 @@ function getPkgUnit(row = {}) {
 const unitRow = containers.find(c => getPkgUnit(c)) || {};
 
 const totalPkgs =
-  toNumLoose(totals.pkgs) ||
-  toNumLoose(shipment.pcs_total) ||
-  toNumLoose(shipment.package_count) ||
   containers.reduce((sum, c) => {
-    return sum + toNumLoose(c.pcs || c.pkgs || c.qty);
+    return sum + toNumLoose(c.pcs || c.qty || c.pkgs);
   }, 0);
+
+const totalUnit =
+  containers.find(c =>
+    c.pkg_unit || c.qty_unit
+  )?.pkg_unit ||
+  containers.find(c =>
+    c.pkg_unit || c.qty_unit
+  )?.qty_unit ||
+  '';
 
 const totalGw =
   toNumLoose(totals.gw_kg) ||
@@ -147,12 +153,6 @@ const totalCbm =
   containers.reduce((sum, c) => {
     return sum + toNumLoose(c.cbm || c.m3);
   }, 0);
-
-const totalUnit =
-  totals.unit ||
-  shipment.package_unit ||
-  shipment.package_type ||
-  '';
 
 const pkgsText =
   totalPkgs
