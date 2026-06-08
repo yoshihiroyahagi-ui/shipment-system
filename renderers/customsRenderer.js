@@ -130,6 +130,8 @@ const unitRow = containers.find(c => getPkgUnit(c)) || {};
 
 const totalPkgs =
   toNumLoose(totals.pkgs) ||
+  toNumLoose(shipment.pcs_total) ||
+  toNumLoose(shipment.package_count) ||
   containers.reduce((sum, c) => {
     return sum + toNumLoose(c.pcs || c.pkgs || c.qty);
   }, 0);
@@ -147,8 +149,9 @@ const totalCbm =
   }, 0);
 
 const totalUnit =
-  getPkgUnit(totals) ||
-  getPkgUnit(unitRow) ||
+  totals.unit ||
+  shipment.package_unit ||
+  shipment.package_type ||
   '';
 
 const pkgsText =
