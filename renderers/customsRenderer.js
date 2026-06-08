@@ -187,6 +187,16 @@ const cbmText = totalCbm ? `${totalCbm} CBM` : '';
     ? itemLines[0]
     : '';
 
+
+let customsData = {};
+
+try {
+  customsData =
+    JSON.parse(shipment.customs_data || '{}');
+} catch (e) {
+  customsData = {};
+}
+
 const descriptionText =
   firstCommodity ||
   (
