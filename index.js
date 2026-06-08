@@ -320,8 +320,10 @@ async function buildInvoiceLinesFromShipmentCharges(invoice_id, shipment_id) {
       billing_amount_gross: tax.gross,
 
       currency,
-      foreign_unit_price: currency !== 'JPY' ? rate : null,
+      foreign_unit_price: rate || null,
       exchange_rate: currency !== 'JPY' ? fxRate : null,
+      quantity: qty || 1,
+      quantity_unit: c.unit || c.qty_unit || c.quantity_unit || null,
       line_note: c.note || c.memo || null
     };
   });
