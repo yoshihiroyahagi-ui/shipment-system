@@ -121,22 +121,35 @@ const salesGross =
     .filter(l => l.billing_tax_type === 'exempt')
     .reduce((sum, l) => sum + toNumber(l.billing_amount_net), 0);
 
-  const rowsHtml = invoiceLines.map((l, idx) => `
+  const rowsHtml = invoiceLines.map((l, idx) => {
+  const qty =
+    Number(l.quantity || 1);
+
+  const unitPrice =
+    l.foreign_unit_price ||
+    (
+      qty
+        ? Math.round(Number(l.billing_amount_net || 0) / qty)
+        : l.billing_amount_net
+    );
+
+  const unitPriceText =
+    unitPrice
+      ? `${unitPrice}${l.currency ? ' ' + l.currency : ''}`
+      : '';
+
+  return `
   <tr>
     <td class="no">${idx + 1}</td>
     <td>${esc(l.item_name || '')}</td>
     <td class="center">${esc(taxLabel(l.billing_tax_type))}</td>
     <td class="num">${esc(l.quantity || '')}</td>
     <td>${esc(l.quantity_unit || '')}</td>
-    <td class="num">
-      ${esc(
-        `${l.foreign_unit_price || ''}${l.currency ? ' ' + l.currency : ''}`
-      )}
-    </td>
+    <td class="num">${esc(unitPriceText)}</td>
     <td class="num">${yen(l.billing_amount_net)}</td>
     <td>${esc(l.line_note || l.memo || '')}</td>
-  </tr>
-`).join('');
+  </tr>`;
+}).join('');
 
   const blankRows = Math.max(0, 22 - invoiceLines.length);
 
