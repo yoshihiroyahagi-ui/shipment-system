@@ -211,6 +211,12 @@ const descriptionText =
   .map(code => requestMap[code] || code)
   .join('\n');
 
+  const productInfo =
+  customs.product_info ||
+  customs.description_text ||
+  customs.free_text ||
+  '';
+
   const declarationAmount =
     shipment.declaration_amount ||
     customs.declaration_amount ||
@@ -592,14 +598,14 @@ ${esc([
         <td class="label">INVOICE NO.</td>
         <td>${esc(shipment.invoice_no || customs.invoice_no || '')}</td>
         <td class="label">ITEM(品名)</td>
-        <td>${esc(shipment.item_name || customs.item_name || '')}</td>
+        <td>${esc(descriptionText)}</td>
       </tr>
     </table>
   </div>
 
   <div class="section">
     <div class="section-title">商品情報</div>
-    <div class="list-lines">${esc(descriptionText)}</div>
+    <div class="list-lines">${esc(productInfo)}</div>
   </div>
 
   <div class="section">
