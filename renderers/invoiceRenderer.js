@@ -127,7 +127,11 @@ const salesGross =
     <td class="center">${esc(taxLabel(l.billing_tax_type))}</td>
     <td class="num">${esc(l.quantity || '')}</td>
     <td>${esc(l.quantity_unit || '')}</td>
-    <td class="num">${esc(l.foreign_unit_price || '')}</td>
+    <td class="num">
+      ${esc(
+        `${l.foreign_unit_price || ''}${l.currency ? ' ' + l.currency : ''}`
+      )}
+    </td>
     <td class="num">${yen(l.billing_amount_net)}</td>
     <td>${esc(l.line_note || l.memo || '')}</td>
   </tr>
