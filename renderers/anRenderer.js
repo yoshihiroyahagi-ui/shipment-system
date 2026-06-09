@@ -156,11 +156,13 @@ if (pcsVal || unitVal) {
       ? `${containers.reduce((sum, c) => sum + Number(c.gw_kg || 0), 0)}KGS`
       : '';
 
-  const totalM3 = totals.cbm
-    ? `${totals.cbm}CBM`
-    : containers.reduce((sum, c) => sum + Number(c.cbm || 0), 0)
-      ? `${containers.reduce((sum, c) => sum + Number(c.cbm || 0), 0)}CBM`
-      : '';
+  const totalM3 =
+  totals.cbm
+    ? `${Number(totals.cbm).toFixed(3)}CBM`
+    : `${containers.reduce(
+        (sum, c) => sum + Number(c.cbm || 0),
+        0
+      ).toFixed(3)}CBM`;
 
   const marks =
   snapshot.case_mark ||
