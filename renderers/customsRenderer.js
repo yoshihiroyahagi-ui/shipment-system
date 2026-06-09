@@ -148,11 +148,13 @@ const totalGw =
     return sum + toNumLoose(c.gw_kg || c.gw);
   }, 0);
 
-const totalCbm =
-  toNumLoose(totals.cbm) ||
-  containers.reduce((sum, c) => {
-    return sum + toNumLoose(c.cbm || c.m3);
-  }, 0);
+const totalM3 =
+  totals.cbm
+    ? `${Number(totals.cbm).toFixed(3)}CBM`
+    : `${containers.reduce(
+        (sum, c) => sum + Number(c.cbm || 0),
+        0
+      ).toFixed(3)}CBM`;
 
 const pkgsText =
   totalPkgs
