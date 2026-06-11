@@ -5601,44 +5601,6 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
 });
 app.get('/api/invoice/bulk-detail/html', async (req, res) => {
   try {
-
-    const customerCode =
-      String(req.query.customer_code || '').trim();
-
-    const billingMonth =
-      String(req.query.billing_month || '').trim();
-
-    const data =
-      await buildTotalInvoiceData({
-        customerCode,
-        billingMonth
-      });
-
-    const html =
-      renderTotalInvoiceHtml(data);
-
-    res.setHeader(
-      'Content-Type',
-      'text/html; charset=utf-8'
-    );
-
-    res.send(html);
-
-  } catch (err) {
-
-    console.error(
-      'GET /api/invoice/bulk-detail/html error:',
-      err
-    );
-
-    res.status(500).send(`
-      <h1>一括請求明細生成エラー</h1>
-      <pre>${err.message}</pre>
-    `);
-  }
-});
-app.get('/api/invoice/bulk-detail/html', async (req, res) => {
-  try {
     const customerCode = String(req.query.customer_code || '').trim();
     const billingMonth = String(req.query.billing_month || '').trim();
 
