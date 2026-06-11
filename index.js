@@ -16,6 +16,7 @@ import puppeteer from 'puppeteer';
 import { resolveDeliveryPayload } from './services/deliveryResolver.js';
 import { resolveInvoicePayloadByInvoiceId } from './services/invoiceResolver.js';
 import { renderInvoiceHtml } from './renderers/invoiceRenderer.js';
+import { renderTotalInvoiceHtml } from './renderers/totalInvoiceRenderer.js';
 
 const app = express();
 
@@ -278,6 +279,125 @@ console.log('[invoice totals]', {
 
     remarks: deliveryText || base.remarks || null,
     status: base.status || 'draft'
+  };
+}
+
+async function buildTotalInvoiceData({ customerId, billingMonth }) {
+  if (!customerId || !billingMonth) {
+    throw new Error('customer_id と billing_month は必須です');
+  }
+
+  const { data: invoices, error } = await supabase
+    .from('invoice_headers')
+    .select(`
+      invoice_id,
+      invoice_no,
+      customer_id,
+      customer_name,
+      billing_month,
+      invoice_date,
+      due_date,
+      payment_due_date,
+      commercial_invoice_no,
+      vessel,
+      voyage,
+      job_no,
+      hbl_no,
+      remarks,
+      invoice_lines (
+        billing_amount_net,
+        billing_tax_type,
+        billing_tax_amount,
+        billing_amount_gross
+      )
+    `)
+    .eq('customer_id', customerId)
+    .eq('billing_month', billingMonth)
+    .neq('status', 'cancelled')
+    .order('invoice_no', { ascending: true });
+
+  if (error) throw error;
+
+  const rows = (invoices || []).map(inv => {
+    let taxable = 0;
+    let tax = 0;
+    let exempt = 0;
+    let advance = 0;
+    let total = 0;
+
+    (inv.invoice_lines || []).forEach(line => {
+      const net = Number(line.billing_amount_net || 0);
+      const taxAmount = Number(line.billing_tax_amount || 0);
+      const gross = Number(line.billing_amount_gross || 0);
+      const taxType = String(line.billing_tax_type || 'taxable');
+
+      if (taxType === 'taxable') {
+        taxable += net;
+        tax += taxAmount;
+      } else if (
+        taxType === 'exempt' ||
+        taxType === 'non_taxable'
+      ) {
+        exempt += net;
+      } else if (
+        taxType === 'advance' ||
+        taxType === 'out_of_scope'
+      ) {
+        advance += net;
+      } else {
+        taxable += net;
+        tax += taxAmount;
+      }
+
+      total += gross || net + taxAmount;
+    });
+
+    return {
+      invoice_id: inv.invoice_id,
+      invoice_no: inv.invoice_no || '',
+      taxable_amount: taxable,
+      tax_amount: tax,
+      exempt_amount: exempt,
+      advance_amount: advance,
+      total_amount: total,
+
+      remark1: inv.commercial_invoice_no || '',
+      remark2: [inv.vessel, inv.voyage].filter(Boolean).join(' / '),
+      remark3: inv.job_no || inv.hbl_no || '',
+      remark4: inv.remarks || ''
+    };
+  });
+
+  const totals = rows.reduce((acc, r) => {
+    acc.taxable_amount += r.taxable_amount;
+    acc.tax_amount += r.tax_amount;
+    acc.exempt_amount += r.exempt_amount;
+    acc.advance_amount += r.advance_amount;
+    acc.total_amount += r.total_amount;
+    return acc;
+  }, {
+    taxable_amount: 0,
+    tax_amount: 0,
+    exempt_amount: 0,
+    advance_amount: 0,
+    total_amount: 0
+  });
+
+  const first = invoices?.[0] || {};
+
+  return {
+    customer_id: customerId,
+    customer_name: first.customer_name || '',
+    billing_month: billingMonth,
+
+    invoice_date: first.invoice_date || new Date(),
+    due_date:
+      first.payment_due_date ||
+      first.due_date ||
+      '',
+
+    rows,
+    totals
   };
 }
 
@@ -5336,6 +5456,190 @@ app.get('/api/invoice/pdf', async (req, res) => {
   );
 
   res.send(pdf);
+});
+// 一括請求明細 API
+app.get('/api/invoice/bulk-detail', async (req, res) => {
+  try {
+    const customerId = String(req.query.customer_id || '').trim();
+    const billingMonth = String(req.query.billing_month || '').trim();
+
+    if (!customerId || !billingMonth) {
+      return res.status(400).json({
+        success: false,
+        message: 'customer_id と billing_month は必須です'
+      });
+    }
+
+    const { data: invoices, error } = await supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        invoice_no,
+        customer_id,
+        customer_name,
+        billing_month,
+        invoice_date,
+        due_date,
+        payment_due_date,
+        job_no,
+        hbl_no,
+        mbl_no,
+        vessel,
+        voyage,
+        commercial_invoice_no,
+        remarks,
+        sales_net_total,
+        sales_tax_total,
+        sales_gross_total,
+        invoice_lines (
+          billing_amount_net,
+          billing_tax_type,
+          billing_tax_amount,
+          billing_amount_gross
+        )
+      `)
+      .eq('customer_id', customerId)
+      .eq('billing_month', billingMonth)
+      .neq('status', 'cancelled')
+      .order('invoice_no', { ascending: true });
+
+    if (error) throw error;
+
+    const rows = (invoices || []).map(inv => {
+      const lines = inv.invoice_lines || [];
+
+      let taxable = 0;
+      let tax = 0;
+      let exempt = 0;
+      let advance = 0;
+      let total = 0;
+
+      lines.forEach(line => {
+        const net = Number(line.billing_amount_net || 0);
+        const taxAmount = Number(line.billing_tax_amount || 0);
+        const gross = Number(line.billing_amount_gross || 0);
+        const type = String(line.billing_tax_type || 'taxable');
+
+        if (type === 'taxable') {
+          taxable += net;
+          tax += taxAmount;
+        } else if (type === 'exempt' || type === 'non_taxable') {
+          exempt += net;
+        } else if (type === 'advance' || type === 'out_of_scope') {
+          advance += net;
+        }
+
+        total += gross || (net + taxAmount);
+      });
+
+      return {
+        invoice_id: inv.invoice_id,
+        invoice_no: inv.invoice_no || '',
+        taxable_amount: taxable,
+        tax_amount: tax,
+        exempt_amount: exempt,
+        advance_amount: advance,
+        total_amount: total,
+
+        remark1: inv.commercial_invoice_no || '',
+        remark2: [inv.vessel, inv.voyage].filter(Boolean).join(' / '),
+        remark3: inv.job_no || inv.hbl_no || '',
+        remark4: inv.remarks || ''
+      };
+    });
+
+    const totals = rows.reduce((acc, r) => {
+      acc.taxable_amount += r.taxable_amount;
+      acc.tax_amount += r.tax_amount;
+      acc.exempt_amount += r.exempt_amount;
+      acc.advance_amount += r.advance_amount;
+      acc.total_amount += r.total_amount;
+      return acc;
+    }, {
+      taxable_amount: 0,
+      tax_amount: 0,
+      exempt_amount: 0,
+      advance_amount: 0,
+      total_amount: 0
+    });
+
+    res.json({
+      success: true,
+      customer_id: customerId,
+      customer_name: invoices?.[0]?.customer_name || '',
+      billing_month: billingMonth,
+      rows,
+      totals
+    });
+
+  } catch (err) {
+    console.error('GET /api/invoice/bulk-detail error:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || '一括請求明細の取得に失敗しました'
+    });
+  }
+});
+app.get('/api/invoice/bulk-detail/html', async (req, res) => {
+  try {
+
+    const customerId =
+      String(req.query.customer_id || '').trim();
+
+    const billingMonth =
+      String(req.query.billing_month || '').trim();
+
+    const data =
+      await buildTotalInvoiceData({
+        customerId,
+        billingMonth
+      });
+
+    const html =
+      renderTotalInvoiceHtml(data);
+
+    res.setHeader(
+      'Content-Type',
+      'text/html; charset=utf-8'
+    );
+
+    res.send(html);
+
+  } catch (err) {
+
+    console.error(
+      'GET /api/invoice/bulk-detail/html error:',
+      err
+    );
+
+    res.status(500).send(`
+      <h1>一括請求明細生成エラー</h1>
+      <pre>${err.message}</pre>
+    `);
+  }
+});
+app.get('/api/invoice/bulk-detail/html', async (req, res) => {
+  try {
+    const customerId = String(req.query.customer_id || '').trim();
+    const billingMonth = String(req.query.billing_month || '').trim();
+
+    const data = await buildTotalInvoiceData({
+      customerId,
+      billingMonth
+    });
+
+    const html = renderTotalInvoiceHtml(data);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+
+  } catch (err) {
+    console.error('GET /api/invoice/bulk-detail/html error:', err);
+    res.status(500).send(`
+      <h1>一括請求明細生成エラー</h1>
+      <pre>${err.message}</pre>
+    `);
+  }
 });
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
