@@ -5610,7 +5610,7 @@ app.get('/api/invoice/bulk-detail/html', async (req, res) => {
 
     const data =
       await buildTotalInvoiceData({
-        customerId,
+        customerCode,
         billingMonth
       });
 
