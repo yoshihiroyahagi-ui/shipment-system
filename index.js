@@ -5479,13 +5479,13 @@ app.get('/api/invoice/pdf', async (req, res) => {
 // 一括請求明細 API
 app.get('/api/invoice/bulk-detail', async (req, res) => {
   try {
-    const customerId = String(req.query.customer_id || '').trim();
+    const customerId = String(req.query.customer_code || '').trim();
     const billingMonth = String(req.query.billing_month || '').trim();
 
     if (!customerId || !billingMonth) {
       return res.status(400).json({
         success: false,
-        message: 'customer_id と billing_month は必須です'
+        message: 'customer_code と billing_month は必須です'
       });
     }
 
@@ -5494,7 +5494,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
       .select(`
         invoice_id,
         invoice_no,
-        customer_id,
+        customer_code,
         customer_name,
         billing_month,
         invoice_date,
@@ -5517,7 +5517,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
           billing_amount_gross
         )
       `)
-      .eq('customer_id', customerId)
+      .eq('customer_code', customerCode)
       .eq('billing_month', billingMonth)
       .neq('status', 'cancelled')
       .order('invoice_no', { ascending: true });
@@ -5584,7 +5584,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
 
     res.json({
       success: true,
-      customer_id: customerId,
+      customer_code: customerCode,
       customer_name: invoices?.[0]?.customer_name || '',
       billing_month: billingMonth,
       rows,
@@ -5603,7 +5603,7 @@ app.get('/api/invoice/bulk-detail/html', async (req, res) => {
   try {
 
     const customerId =
-      String(req.query.customer_id || '').trim();
+      String(req.query.customer_code || '').trim();
 
     const billingMonth =
       String(req.query.billing_month || '').trim();
@@ -5639,11 +5639,11 @@ app.get('/api/invoice/bulk-detail/html', async (req, res) => {
 });
 app.get('/api/invoice/bulk-detail/html', async (req, res) => {
   try {
-    const customerId = String(req.query.customer_id || '').trim();
+    const customerId = String(req.query.customer_code || '').trim();
     const billingMonth = String(req.query.billing_month || '').trim();
 
     const data = await buildTotalInvoiceData({
-      customerId,
+      customerCode,
       billingMonth
     });
 
