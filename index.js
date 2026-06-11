@@ -5602,7 +5602,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
 app.get('/api/invoice/bulk-detail/html', async (req, res) => {
   try {
 
-    const customerId =
+    const customerCode =
       String(req.query.customer_code || '').trim();
 
     const billingMonth =
