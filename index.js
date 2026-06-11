@@ -1129,22 +1129,43 @@ app.post('/api/invoice/save', async (req, res) => {
 
     const grossProfitNet = salesNetTotal - payableNetTotal;
 
-    const headerUpdate = {
-      ...header,
+    const grossProfitNet = salesNetTotal - payableNetTotal;
 
-      sales_net_total: salesNetTotal,
-      sales_tax_total: salesTaxTotal,
-      sales_gross_total: salesGrossTotal,
+let resolvedCustomerCode =
+  header.customer_code ||
+  null;
 
-      payable_net_total: payableNetTotal,
-      payable_tax_total: payableTaxTotal,
-      payable_gross_total: payableGrossTotal,
+if (!resolvedCustomerCode && header.shipment_id) {
+  const { data: shipmentForCustomer, error: shipCustErr } = await supabase
+    .from('shipments')
+    .select('customer_code')
+    .eq('shipment_id', header.shipment_id)
+    .maybeSingle();
 
-      gross_profit_net: grossProfitNet,
-      gross_profit_rate: calcProfitRate(salesNetTotal, grossProfitNet),
+  if (shipCustErr) throw shipCustErr;
 
-      updated_at: new Date().toISOString()
-    };
+  resolvedCustomerCode =
+    shipmentForCustomer?.customer_code || null;
+}
+
+const headerUpdate = {
+  ...header,
+
+  customer_code: resolvedCustomerCode,
+
+  sales_net_total: salesNetTotal,
+  sales_tax_total: salesTaxTotal,
+  sales_gross_total: salesGrossTotal,
+
+  payable_net_total: payableNetTotal,
+  payable_tax_total: payableTaxTotal,
+  payable_gross_total: payableGrossTotal,
+
+  gross_profit_net: grossProfitNet,
+  gross_profit_rate: calcProfitRate(salesNetTotal, grossProfitNet),
+
+  updated_at: new Date().toISOString()
+};
 
     delete headerUpdate.invoice_id;
     delete headerUpdate.created_at;
