@@ -282,9 +282,15 @@ console.log('[invoice totals]', {
   };
 }
 
-async function buildTotalInvoiceData({ customerId, billingMonth }) {
-  if (!customerId || !billingMonth) {
-    throw new Error('customer_code と billing_month は必須です');
+async function buildTotalInvoiceData({
+  customerCode,
+  billingMonth
+}) {
+
+  if (!customerCode || !billingMonth) {
+    throw new Error(
+      'customer_code と billing_month は必須です'
+    );
   }
 
   const { data: invoices, error } = await supabase
