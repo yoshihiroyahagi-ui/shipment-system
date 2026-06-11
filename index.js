@@ -1129,8 +1129,6 @@ app.post('/api/invoice/save', async (req, res) => {
 
     const grossProfitNet = salesNetTotal - payableNetTotal;
 
-    const grossProfitNet = salesNetTotal - payableNetTotal;
-
 let resolvedCustomerCode =
   header.customer_code ||
   null;
