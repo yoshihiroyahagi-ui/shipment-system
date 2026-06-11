@@ -1741,7 +1741,7 @@ app.get('/api/my-lines', async (req, res) => {
     const offset = Number(req.query.offset || 0)
     const limit = Number(req.query.limit || 15)
 
-    const session = getSessionOrThrow(sessionId)
+    const session = await getSessionOrThrow(req)
 
     const result = await getMyLines(
       session.customer_code,
@@ -1792,7 +1792,7 @@ app.get('/api/line-detail', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'line_id is required' })
     }
 
-    const session = getSessionOrThrow(sessionId)
+    const session = await getSessionOrThrow(req)
     const result = await getLineDetail(lineId, session.customer_code)
 
     res.json({ ok: true, line: result.line, shipment: result.shipment })
@@ -1812,7 +1812,7 @@ app.post('/api/update-line', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'line_id is required' })
     }
 
-    const session = getSessionOrThrow(sessionId)
+    const session = await getSessionOrThrow(req)
     const result = await updateLine(lineId, session.customer_code, req.body)
 
     res.json({ ok: true, line: result.line, shipment: result.shipment })
@@ -2985,7 +2985,7 @@ app.post('/api/customer/save-comment', async (req, res) => {
   try {
     const { session_id, shipment_id, customer_comment } = req.body;
 
-    const session = getSessionOrThrow(session_id);
+    const session = await getSessionOrThrow(req);
 
     const { error } = await supabase
       .from('shipments')
