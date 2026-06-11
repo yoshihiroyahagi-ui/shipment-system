@@ -1195,18 +1195,35 @@ const headerUpdate = {
   }
 });
 // --- session store (今日はメモリでOK) ---
-const sessions = new Map()
-const SESSION_TTL_MS = 1000 * 60 * 60 * 16 // 6時間
+// --- customer session store：DB永続化版 ---
+const SESSION_TTL_MS =
+  1000 * 60 * 60 * 24 * 30; // 30日
 
-function createSession(customer) {
-  const sessionId = crypto.randomUUID()
-  sessions.set(sessionId, {
+async function createSession(customer, req) {
+  const sessionId = crypto.randomUUID();
+
+  const expiresAt =
+    new Date(Date.now() + SESSION_TTL_MS).toISOString();
+
+  const sessionRow = {
     session_id: sessionId,
     customer_code: customer.customer_code,
     customer_name: customer.customer_name || customer.customer_code,
-    expires_at: Date.now() + SESSION_TTL_MS
-  })
-  return sessions.get(sessionId)
+    expires_at: expiresAt,
+    user_agent: req?.headers?.['user-agent'] || null,
+    ip_address:
+      req?.headers?.['x-forwarded-for'] ||
+      req?.socket?.remoteAddress ||
+      null
+  };
+
+  const { error } = await supabase
+    .from('customer_sessions')
+    .insert(sessionRow);
+
+  if (error) throw error;
+
+  return sessionRow;
 }
 
 function normalizeRequestDestShort(row) {
@@ -1215,16 +1232,40 @@ function normalizeRequestDestShort(row) {
   return row.delivery_dest_short
 }
 
-function getSessionOrThrow(sessionId) {
-  const s = sessions.get(String(sessionId || '').trim())
-  if (!s) throw new Error('セッションが無効です')
+async function getSessionOrThrow(req) {
+  const sessionId =
+    req.headers['x-customer-session'] ||
+    req.query.session_id ||
+    req.body?.session_id;
 
-  if (Date.now() > s.expires_at) {
-    sessions.delete(s.session_id)
-    throw new Error('セッションの有効期限が切れています')
+  if (!sessionId) {
+    throw new Error('セッションがありません');
   }
 
-  return s
+  const { data: session, error } = await supabase
+    .from('customer_sessions')
+    .select('*')
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!session) {
+    throw new Error('セッションが無効です');
+  }
+
+  if (new Date(session.expires_at).getTime() < Date.now()) {
+    throw new Error('セッションの有効期限が切れています');
+  }
+
+  await supabase
+    .from('customer_sessions')
+    .update({
+      last_access_at: new Date().toISOString()
+    })
+    .eq('session_id', sessionId);
+
+  return session;
 }
 function mapLineRow(row) {
   return {
@@ -1675,10 +1716,10 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'ログインキーが正しくありません' })
     }
 
-    const session = createSession({
-      customer_code: data.customer_code,
-      customer_name: data.customer_name || data.customer_code
-    })
+    const session = await createSession({
+  customer_code: data.customer_code,
+  customer_name: data.customer_name || data.customer_code
+}, req);
 
     res.json({
       ok: true,
