@@ -234,7 +234,7 @@ console.log('[invoice totals]', {
     source_type: 'SHIPMENT',
     shipment_id,
 
-    customer_id: s.customer_id || base.customer_id || null,
+    customer_code: s.customer_code || base.customer_code || null,
     customer_name: customerName || s.customer_name || s.client_name || base.customer_name || null,
 
     invoice_no: base.invoice_no || null,
@@ -284,7 +284,7 @@ console.log('[invoice totals]', {
 
 async function buildTotalInvoiceData({ customerId, billingMonth }) {
   if (!customerId || !billingMonth) {
-    throw new Error('customer_id と billing_month は必須です');
+    throw new Error('customer_code と billing_month は必須です');
   }
 
   const { data: invoices, error } = await supabase
@@ -292,7 +292,7 @@ async function buildTotalInvoiceData({ customerId, billingMonth }) {
     .select(`
       invoice_id,
       invoice_no,
-      customer_id,
+      customer_code,
       customer_name,
       billing_month,
       invoice_date,
@@ -311,7 +311,7 @@ async function buildTotalInvoiceData({ customerId, billingMonth }) {
         billing_amount_gross
       )
     `)
-    .eq('customer_id', customerId)
+    .eq('customer_code', customerCode)
     .eq('billing_month', billingMonth)
     .neq('status', 'cancelled')
     .order('invoice_no', { ascending: true });
@@ -386,7 +386,7 @@ async function buildTotalInvoiceData({ customerId, billingMonth }) {
   const first = invoices?.[0] || {};
 
   return {
-    customer_id: customerId,
+    customer_code: customerCode,
     customer_name: first.customer_name || '',
     billing_month: billingMonth,
 
