@@ -540,10 +540,10 @@ href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
       <div class="section-head">船積み情報</div>
       <div class="section-body">
         <div class="kv">
-          <div class="k">PLACE OF RECEIPT</div><div class="v">${esc(shipment.pol || '')}</div>
+          <div class="k">PLACE OF RECEIPT</div><div class="v">${esc(placeOfReceipt || '')}</div>
           <div class="k">PORT OF LOADING</div><div class="v">${esc(shipment.pol || '')}</div>
           <div class="k">PORT OF DISCHARGE</div><div class="v">${esc(shipment.pod || '')}</div>
-          <div class="k">PLACE OF DELIVERY</div><div class="v">${esc(shipment.pod || '')}</div>
+          <div class="k">PLACE OF DELIVERY</div><div class="v">${esc(placeOfDelivery || '')}</div>
           <div class="k">TRANSHIP PORT</div><div class="v">${esc(shipment.tranship_port || '')}</div>
         </div>
       </div>
