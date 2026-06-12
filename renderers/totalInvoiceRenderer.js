@@ -81,6 +81,7 @@ body{
   margin:0 auto;
   padding:8mm;
   background:#fff;
+  position:relative;
 }
 .top-bar{background:var(--main);color:#fff;padding:14px 22px;font-size:26px;font-weight:bold;display:flex;justify-content:space-between}
 .header{
@@ -131,10 +132,11 @@ body{
   white-space:nowrap;
 }
 table{
-  table-layout:fixed;
   width:100%;
+  table-layout:fixed;
   border-collapse:collapse;
   margin-top:18px;
+  margin-bottom:32mm;
   font-size:9px;
 }
 
@@ -174,11 +176,14 @@ td{
 .total-row td{background:var(--main);color:#fff;font-weight:bold}
 .total-row .blank{background:#fff;color:#111}
 .bottom{
+  position:absolute;
+  left:8mm;
+  right:8mm;
+  bottom:8mm;
   display:grid;
   grid-template-columns:22% 34% 44%;
   gap:8px;
-  margin-top:10px;
-  width:100%;
+  margin-top:0;
 }
 
 .bottom-title{
