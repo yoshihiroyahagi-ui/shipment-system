@@ -206,20 +206,35 @@ function buildShipmentBlock(shipment) {
 
 function mapAnSnapshot(row) {
   if (!row) return null;
+
   return {
     shipment_id: row.shipment_id,
+
     shipper_name: row.shipper_name,
     shipper_address_1: row.shipper_address_1,
     shipper_address_2: row.shipper_address_2,
+
     consignee_name: row.consignee_name,
     consignee_address_1: row.consignee_address_1,
     consignee_address_2: row.consignee_address_2,
+
     notify_name: row.notify_name,
     notify_address_1: row.notify_address_1,
     notify_address_2: row.notify_address_2,
+
     hbl_no: row.hbl_no,
     mbl_no: row.mbl_no,
     inbound_no: row.inbound_no,
+
+    pol: row.pol,
+    pod: row.pod,
+
+    place_of_receipt: row.place_of_receipt,
+    place_of_delivery: row.place_of_delivery,
+
+    vessel: row.vessel,
+    voyage: row.voyage,
+
     case_mark: row.case_mark || '',
     body_description: row.body_description || '',
     container_lines_json: row.container_lines_json || []
