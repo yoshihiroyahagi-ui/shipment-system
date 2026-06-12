@@ -138,18 +138,21 @@ table{
   margin-top:18px;
   margin-bottom:32mm;
   font-size:9px;
+  table-layout:fixed;
 }
 
 th{
-  padding:3px 2px;
-  line-height:1.15;
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  border-left:none;
+  border-right:none;
 }
 
 td{
-  padding:3px 2px;
-  height:22px;
-  line-height:1.15;
-  overflow:hidden;
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  border-left:none;
+  border-right:none;
 }
 .center{text-align:center}.right{text-align:right}.bold{font-weight:bold}
 .remark-cell{padding:0 10px}
@@ -279,14 +282,14 @@ td{
   <table>
     <thead>
       <tr>
-        <th style="width:4%;">No.</th>
-        <th style="width:16%;">請求書No.</th>
-        <th style="width:11%;">課税対象金額</th>
-        <th style="width:11%;">消費税</th>
-        <th style="width:11%;">非課税金額</th>
-        <th style="width:11%;">対象外／立替</th>
-        <th style="width:11%;">請求合計金額</th>
-        <th style="width:25%;">備考</th>
+        <th style="width:5.56%;">No.</th>
+        <th style="width:11.11%;">請求書No.</th>
+        <th style="width:11.11%;">課税対象金額</th>
+        <th style="width:11.11%;">消費税</th>
+        <th style="width:11.11%;">非課税金額</th>
+        <th style="width:11.11%;">対象外／立替</th>
+        <th style="width:11.11%;">請求合計金額</th>
+        <th style="width:27.78%;">備考</th>
       </tr>
     </thead>
     <tbody>
