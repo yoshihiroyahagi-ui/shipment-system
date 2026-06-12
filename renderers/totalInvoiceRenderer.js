@@ -126,9 +126,21 @@ body{
   min-height:24mm;
   overflow:visible;
 }
-table{width:100%;border-collapse:collapse;margin-top:28px;font-size:11px}
-th{background:var(--main);color:#fff;border:1px solid var(--border);padding:9px 6px;text-align:center}
-td{border:1px solid var(--border);padding:4px 6px;height:30px}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:18px;
+  font-size:11px;
+}
+
+th{
+  padding:5px 4px;
+}
+
+td{
+  padding:4px 5px;
+  height:28px;
+}
 .center{text-align:center}.right{text-align:right}.bold{font-weight:bold}
 .remark-cell{padding:0 10px}
 .remark-line{
