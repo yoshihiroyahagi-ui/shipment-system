@@ -81,10 +81,18 @@ const salesGross =
   salesNet + salesTax;
 
   const qtyText = [
-    header.pcs_total ? `${yen(header.pcs_total)} ${header.package_unit || ''}` : '',
-    header.gw_total ? `${yen(header.gw_total)} KG` : '',
-    header.cbm_total ? `${header.cbm_total} M3` : ''
-  ].filter(Boolean).join('　　');
+  header.pcs_total
+    ? `${Number(header.pcs_total).toLocaleString()} ${header.package_unit || ''}`
+    : '',
+
+  header.gw_total
+    ? `${Number(header.gw_total).toFixed(3)} KG`
+    : '',
+
+  header.cbm_total
+    ? `${Number(header.cbm_total).toFixed(3)} M3`
+    : ''
+].filter(Boolean).join('　　');
 
   const displayInvoiceNo =
     header.job_no ||
