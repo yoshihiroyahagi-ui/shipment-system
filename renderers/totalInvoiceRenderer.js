@@ -22,12 +22,15 @@ function formatDateJa(v) {
 }
 
 function renderRemark(r) {
+  const left = r.remark1 || '';
+  const middle = r.remark2 || '';
+  const right = r.remark3 || '';
+
   return `
-    <div class="remark-grid">
-      <span>${esc(r.remark1)}</span>
-      <span>${esc(r.remark2)}</span>
-      <span>${esc(r.remark3)}</span>
-      <span>${esc(r.remark4)}</span>
+    <div class="remark-line">
+      <span class="remark-a">${esc(left)}</span>
+      <span class="remark-b">${esc(middle)}</span>
+      <span class="remark-c">${esc(right)}</span>
     </div>
   `;
 }
@@ -61,7 +64,7 @@ export function renderTotalInvoiceHtml(data = {}) {
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 :root{--main:#B78D78;--border:#B78D78}
 body{margin:0;background:#fff;font-family:"Yu Gothic","Meiryo",sans-serif;color:#111}
-.page{width:1123px;min-height:794px;margin:0 auto;padding:28px 34px;background:#fff}
+.page{width:297mm;min-height:210mm;margin:0 auto;padding:10mm;background:#fff}
 .top-bar{background:var(--main);color:#fff;padding:14px 22px;font-size:26px;font-weight:bold;display:flex;justify-content:space-between}
 .header{display:grid;grid-template-columns:38% 28% 34%;gap:24px;margin-top:28px;align-items:start}
 .label{background:var(--main);color:#fff;padding:8px 16px;font-weight:bold;display:inline-block;min-width:96px;text-align:center}
@@ -69,14 +72,68 @@ body{margin:0;background:#fff;font-family:"Yu Gothic","Meiryo",sans-serif;color:
 .amount-box{border:1px solid var(--border);text-align:center;padding:16px}
 .amount-title{background:var(--main);color:#fff;display:inline-block;padding:6px 22px;font-weight:bold;margin-top:-34px}
 .amount{font-size:34px;font-weight:bold;margin-top:18px}
-.company{padding-top:28px;line-height:1.7}
-.company-title{font-size:20px;font-weight:bold;color:var(--main);margin-bottom:14px}
-table{width:100%;border-collapse:collapse;margin-top:28px;font-size:14px}
+.company-main{
+  display:grid;
+  grid-template-columns:14mm 1fr;
+  gap:10mm;
+  align-items:start;
+  position:relative;
+  z-index:1;
+}
+
+.logo-img{
+  width:20mm;
+  height:auto;
+  margin-top:1mm;
+}
+
+.company-name{
+  font-size:16px;
+  font-weight:900;
+  white-space:nowrap;
+  line-height:1.2;
+}
+
+.company-detail{
+  grid-column:2;
+  font-size:9.5px;
+  line-height:1.35;
+  margin-top:1mm;
+  white-space:nowrap;
+}
+
+.company-box{
+  position:relative;
+  margin-left:-6mm;
+  padding-right:14mm;
+  min-height:24mm;
+  overflow:visible;
+}
+table{width:100%;border-collapse:collapse;margin-top:28px;font-size:11px}
 th{background:var(--main);color:#fff;border:1px solid var(--border);padding:9px 6px;text-align:center}
-td{border:1px solid var(--border);padding:8px 8px;height:42px}
+td{border:1px solid var(--border);padding:4px 6px;height:30px}
 .center{text-align:center}.right{text-align:right}.bold{font-weight:bold}
-.remark-cell{padding:0}
-.remark-grid{display:grid;grid-template-columns:27% 38% 17% 18%;padding:8px 10px;column-gap:18px;white-space:nowrap}
+.remark-cell{padding:0 10px}
+.remark-line{
+  display:flex;
+  gap:10px;
+  white-space:nowrap;
+}
+
+.remark-a{
+  width:80px;
+  flex:none;
+}
+
+.remark-b{
+  flex:1;
+}
+
+.remark-c{
+  width:35px;
+  flex:none;
+  text-align:right;
+}
 .total-row td{background:var(--main);color:#fff;font-weight:bold}
 .total-row .blank{background:#fff;color:#111}
 .bottom{display:grid;grid-template-columns:23% 32% 45%;gap:18px;margin-top:20px}
@@ -119,27 +176,40 @@ td{border:1px solid var(--border);padding:8px 8px;height:42px}
       </div>
     </div>
 
-    <div class="company">
-      <div class="company-title">${esc(data.company_name || '株式会社シッピングソリューションズ')}</div>
-      ${esc(data.company_postal || '〒104-0045')}<br>
-      ${esc(data.company_address1 || '東京都中央区築地2-11-24')}<br>
-      ${esc(data.company_address2 || '第29興和ビル 5F')}<br>
-      TEL：${esc(data.company_tel || '03-6264-2737')}　FAX：${esc(data.company_fax || '03-6264-2738')}<br>
-      登録番号：${esc(data.invoice_registration_no || 'T3010001171046')}
+    <div class="company-box">
+  <div class="company-main">
+
+    <img
+      class="logo-img"
+      src="https://portal.bizlabo-tokyo.com/assets/bizlabo-logo.png">
+
+    <div>
+      <div class="company-name">
+        株式会社ビジネスラボ
+      </div>
+
+      <div class="company-detail">
+        〒103-0026 東京都中央区日本橋兜町2-13<br>
+        兜町第6葉山ビル4階<br>
+        TEL: 03-6555-4496 FAX: 03-4496-4103<br>
+        登録番号: T7010003027314
+      </div>
     </div>
+
   </div>
+</div>
 
   <table>
     <thead>
       <tr>
         <th style="width:4%;">No.</th>
-        <th style="width:13%;">請求書No.</th>
-        <th style="width:10%;">課税対象金額</th>
-        <th style="width:9%;">消費税</th>
-        <th style="width:10%;">非課税金額</th>
-        <th style="width:10%;">対象外／立替</th>
+        <th style="width:16%;">請求書No.</th>
+        <th style="width:11%;">課税対象金額</th>
+        <th style="width:11%;">消費税</th>
+        <th style="width:11%;">非課税金額</th>
+        <th style="width:11%;">対象外／立替</th>
         <th style="width:11%;">請求合計金額</th>
-        <th style="width:33%;">備考</th>
+        <th style="width:25%;">備考</th>
       </tr>
     </thead>
     <tbody>
@@ -168,7 +238,7 @@ td{border:1px solid var(--border);padding:8px 8px;height:42px}
     <div>
       <div class="bottom-title">お振込先</div>
       <div class="bottom-box">
-        ${esc(data.bank_info || '三井住友銀行　日本橋支店（店番号：012）\\n普通預金　1234567\\nカ）シッピングソリューションズ').replaceAll('\\n', '<br>')}
+        ${esc(data.bank_info || '三井住友銀行　日本橋東支店（店番号：034）\\n普通預金　7828377\\nカ）ビジネスラボ').replaceAll('\\n', '<br>')}
       </div>
     </div>
 
