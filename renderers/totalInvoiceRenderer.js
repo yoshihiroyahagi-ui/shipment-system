@@ -252,8 +252,7 @@ td{
       <div class="amount-box">
         <div class="amount-title">御請求金額</div>
         <div class="amount">${yen(totals.total_amount)}-</div>
-        <div>（うち消費税額 ${yen(totals.tax_amount)}-）</div>
-      </div>
+    </div>
     </div>
 
     <div class="company-box">
@@ -275,7 +274,7 @@ td{
         登録番号: T7010003027314
       </div>
     </div>
-
+    </div>
   </div>
 </div>
 
