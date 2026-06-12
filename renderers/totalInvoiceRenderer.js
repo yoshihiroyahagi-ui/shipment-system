@@ -63,8 +63,25 @@ export function renderTotalInvoiceHtml(data = {}) {
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 :root{--main:#B78D78;--border:#B78D78}
-body{margin:0;background:#fff;font-family:"Yu Gothic","Meiryo",sans-serif;color:#111}
-.page{width:297mm;min-height:210mm;margin:0 auto;padding:10mm;background:#fff}
+html,body{
+  width:100%;
+  margin:0;
+  padding:0;
+  background:#fff;
+}
+
+body{
+  font-family:"Yu Gothic","Meiryo",sans-serif;
+  color:#111;
+}
+
+.page{
+  width:297mm;
+  min-height:210mm;
+  margin:0 auto;
+  padding:8mm;
+  background:#fff;
+}
 .top-bar{background:var(--main);color:#fff;padding:14px 22px;font-size:26px;font-weight:bold;display:flex;justify-content:space-between}
 .header{display:grid;grid-template-columns:38% 28% 34%;gap:24px;margin-top:28px;align-items:start}
 .label{background:var(--main);color:#fff;padding:8px 16px;font-weight:bold;display:inline-block;min-width:96px;text-align:center}
@@ -140,8 +157,22 @@ td{border:1px solid var(--border);padding:4px 6px;height:30px}
 .bottom-title{background:var(--main);color:#fff;text-align:center;padding:8px;font-weight:bold}
 .bottom-box{border:1px solid var(--border);min-height:86px;padding:18px;line-height:1.6}
 @media print{
-  @page{size:A4 landscape;margin:8mm}
-  .page{width:auto;min-height:auto;padding:0}
+  @page{
+    size:A4 landscape;
+    margin:8mm;
+  }
+
+  html,body{
+    width:297mm;
+    height:210mm;
+  }
+
+  .page{
+    width:100%;
+    min-height:auto;
+    margin:0;
+    padding:0;
+  }
 }
 </style>
 </head>
