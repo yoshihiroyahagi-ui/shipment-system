@@ -135,7 +135,7 @@ table{
   width:100%;
   border-collapse:collapse;
   margin-top:18px;
-  font-size:8px;
+  font-size:9px;
 }
 
 th{
@@ -173,9 +173,30 @@ td{
 }
 .total-row td{background:var(--main);color:#fff;font-weight:bold}
 .total-row .blank{background:#fff;color:#111}
-.bottom{display:grid;grid-template-columns:23% 32% 45%;gap:18px;margin-top:20px}
-.bottom-title{background:var(--main);color:#fff;text-align:center;padding:8px;font-weight:bold}
-.bottom-box{border:1px solid var(--border);min-height:86px;padding:18px;line-height:1.6}
+.bottom{
+  display:grid;
+  grid-template-columns:22% 34% 44%;
+  gap:8px;
+  margin-top:10px;
+  width:100%;
+}
+
+.bottom-title{
+  background:var(--main);
+  color:#fff;
+  text-align:center;
+  padding:4px;
+  font-weight:bold;
+  font-size:9px;
+}
+
+.bottom-box{
+  border:1px solid var(--border);
+  min-height:20mm;
+  padding:6px;
+  line-height:1.35;
+  font-size:8px;
+}
 @media print{
   @page{
     size:A4 landscape;
@@ -281,7 +302,7 @@ td{
   <div class="bottom">
     <div>
       <div class="bottom-title">支払期限</div>
-      <div class="bottom-box center" style="font-size:22px;padding-top:26px;">
+      <div class="bottom-box center" style="font-size:12px;padding-top:9px;white-space:nowrap;">
         ${formatDateJa(dueDate)}
       </div>
     </div>
