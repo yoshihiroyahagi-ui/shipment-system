@@ -24,11 +24,11 @@ function formatDateJa(v) {
 function renderRemark(r) {
   return `
     <div class="remark-line">
-      <span class="remark-invoice">
-        ${esc(r.commercial_invoice_no)}
+      <span class="remark-commercial">
+        ${esc(r.remark1 || '')}
       </span>
       <span class="remark-free">
-        ${esc(r.remark1 || '')}
+        ${esc(r.remark4 || '')}
       </span>
     </div>
   `;
