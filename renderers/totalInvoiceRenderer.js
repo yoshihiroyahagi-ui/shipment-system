@@ -22,15 +22,14 @@ function formatDateJa(v) {
 }
 
 function renderRemark(r) {
-  const left = r.remark1 || '';
-  const middle = r.remark2 || '';
-  const right = r.remark3 || '';
-
   return `
     <div class="remark-line">
-      <span class="remark-a">${esc(left)}</span>
-      <span class="remark-b">${esc(middle)}</span>
-      <span class="remark-c">${esc(right)}</span>
+      <span class="remark-invoice">
+        ${esc(r.invoice_no)}
+      </span>
+      <span class="remark-free">
+        ${esc(r.remark1 || '')}
+      </span>
     </div>
   `;
 }
@@ -84,6 +83,11 @@ body{
   position:relative;
 }
 .top-bar{background:var(--main);color:#fff;padding:14px 22px;font-size:26px;font-weight:bold;display:flex;justify-content:space-between}
+.page-no{
+  font-size:10px;
+  font-weight:normal;
+  align-self:center;
+}
 .header{
   display:grid;
   grid-template-columns:40% 27% 33%;
@@ -162,19 +166,23 @@ td{
   white-space:nowrap;
 }
 
-.remark-a{
-  width:80px;
-  flex:none;
+.remark-line{
+  display:flex;
+  width:100%;
+  gap:8px;
+  white-space:nowrap;
 }
 
-.remark-b{
-  flex:1;
+.remark-invoice{
+  flex:6;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
-.remark-c{
-  width:35px;
-  flex:none;
-  text-align:right;
+.remark-free{
+  flex:4;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .total-row td{background:var(--main);color:#fff;font-weight:bold}
 .total-row .blank{background:#fff;color:#111}
@@ -205,6 +213,7 @@ td{
   line-height:1.35;
   font-size:8px;
 }
+
 @media print{
   @page{
     size:A4 landscape;
@@ -230,9 +239,9 @@ td{
 <div class="page">
 
   <div class="top-bar">
-    <div>一括請求明細書</div>
-    <div>1 / 1 ページ</div>
-  </div>
+  <div>一括請求明細書</div>
+  <div class="page-no">1 / 1 ページ</div>
+</div>
 
   <div class="header">
     <div>
