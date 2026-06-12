@@ -27,6 +27,18 @@ export function buildANHtmlFromPayload(payload = {}) {
   shipment.carrier_id ||
   '';
 
+const placeOfReceipt =
+  snapshot.place_of_receipt === null ||
+  snapshot.place_of_receipt === undefined
+    ? shipment.pol
+    : snapshot.place_of_receipt;
+
+const placeOfDelivery =
+  snapshot.place_of_delivery === null ||
+  snapshot.place_of_delivery === undefined
+    ? shipment.pod
+    : snapshot.place_of_delivery;
+
   const charges = Array.isArray(an.charges)
     ? an.charges
     : Array.isArray(payload.charges)
