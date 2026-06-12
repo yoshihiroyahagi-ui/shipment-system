@@ -83,29 +83,41 @@ body{
   background:#fff;
 }
 .top-bar{background:var(--main);color:#fff;padding:14px 22px;font-size:26px;font-weight:bold;display:flex;justify-content:space-between}
-.header{display:grid;grid-template-columns:38% 28% 34%;gap:24px;margin-top:28px;align-items:start}
+.header{
+  display:grid;
+  grid-template-columns:40% 27% 33%;
+  gap:12px;
+  margin-top:14px;
+  align-items:start;
+}
 .label{background:var(--main);color:#fff;padding:8px 16px;font-weight:bold;display:inline-block;min-width:96px;text-align:center}
 .box{border:1px solid var(--border);padding:18px;min-height:100px;line-height:1.6}
 .amount-box{border:1px solid var(--border);text-align:center;padding:16px}
 .amount-title{background:var(--main);color:#fff;display:inline-block;padding:6px 22px;font-weight:bold;margin-top:-34px}
 .amount{font-size:34px;font-weight:bold;margin-top:18px}
+.company-box{
+  position:relative;
+  margin-left:0;
+  padding-right:0;
+  min-height:20mm;
+  overflow:visible;
+}
+
 .company-main{
   display:grid;
   grid-template-columns:14mm 1fr;
-  gap:10mm;
+  gap:4mm;
   align-items:start;
-  position:relative;
-  z-index:1;
 }
 
 .logo-img{
-  width:20mm;
+  width:14mm;
   height:auto;
   margin-top:1mm;
 }
 
 .company-name{
-  font-size:16px;
+  font-size:10px;
   font-weight:900;
   white-space:nowrap;
   line-height:1.2;
@@ -113,33 +125,29 @@ body{
 
 .company-detail{
   grid-column:2;
-  font-size:9.5px;
-  line-height:1.35;
+  font-size:6.5px;
+  line-height:1.25;
   margin-top:1mm;
   white-space:nowrap;
 }
-
-.company-box{
-  position:relative;
-  margin-left:-6mm;
-  padding-right:14mm;
-  min-height:24mm;
-  overflow:visible;
-}
 table{
+  table-layout:fixed;
   width:100%;
   border-collapse:collapse;
   margin-top:18px;
-  font-size:11px;
+  font-size:8px;
 }
 
 th{
-  padding:5px 4px;
+  padding:3px 2px;
+  line-height:1.15;
 }
 
 td{
-  padding:4px 5px;
-  height:28px;
+  padding:3px 2px;
+  height:22px;
+  line-height:1.15;
+  overflow:hidden;
 }
 .center{text-align:center}.right{text-align:right}.bold{font-weight:bold}
 .remark-cell{padding:0 10px}
