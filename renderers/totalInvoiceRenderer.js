@@ -25,7 +25,7 @@ function renderRemark(r) {
   return `
     <div class="remark-line">
       <span class="remark-invoice">
-        ${esc(r.invoice_no)}
+        ${esc(r.commercial_invoice_no)}
       </span>
       <span class="remark-free">
         ${esc(r.remark1 || '')}
