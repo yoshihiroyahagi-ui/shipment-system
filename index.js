@@ -310,6 +310,7 @@ async function buildTotalInvoiceData({
       job_no,
       hbl_no,
       remarks,
+      bulk_detail_note,
       invoice_lines (
         billing_amount_net,
         billing_tax_type,
@@ -368,9 +369,9 @@ async function buildTotalInvoiceData({
       total_amount: total,
 
       remark1: inv.commercial_invoice_no || '',
-      remark2: [inv.vessel, inv.voyage].filter(Boolean).join(' / '),
-      remark3: inv.job_no || inv.hbl_no || '',
-      remark4: inv.remarks || ''
+      remark2: inv.bulk_detail_note || '',
+      remark3: '',
+      remark4: ''
     };
   });
 
@@ -1025,6 +1026,8 @@ app.post('/api/invoice/save', async (req, res) => {
         quantity: toNumber(line.quantity || 1),
         quantity_unit: line.quantity_unit || null,
 
+        bulk_detail_note: header.bulk_detail_note || null,
+
         billing_amount_net: c.net,
         billing_tax_type: billingTaxType,
         billing_tax_rate: billingTaxRate,
@@ -1092,6 +1095,8 @@ app.post('/api/invoice/save', async (req, res) => {
 
         quantity: toNumber(p.quantity || 1),
         quantity_unit: p.quantity_unit || null,
+
+        bulk_detail_note: header.bulk_detail_note || null,
 
         payable_amount_net: c.net,
         payable_tax_type: payableTaxType,
