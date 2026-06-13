@@ -102,9 +102,9 @@ body{
 }
 .header{
   display:grid;
-  grid-template-columns:40% 27% 33%;
-  gap:12px;
-  margin-top:14px;
+  grid-template-columns:40% 30% 30%;
+  gap:8mm;
+  margin-top:10px;
   align-items:start;
 }
 .label{
@@ -132,12 +132,13 @@ body{
 }
 .amount-box{
   border:1px solid var(--border);
+  height:70px;
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:20px;
-  min-height:70px;
-  padding:10px 20px;
+  gap:18px;
+  padding:0 14px;
+  text-align:center;
 }
 .amount-title{
   color:var(--main);
@@ -151,6 +152,11 @@ body{
   font-size:24px;
   font-weight:700;
   white-space:nowrap;
+  margin:0;
+}
+
+.amount-wrap{
+  padding-top:26px;
 }
 .company-box{
   position:relative;
@@ -318,6 +324,7 @@ td{
     </div>
 
     <div class="amount-wrap">
+        <div class="amount-wrap">
         <div class="amount-title">御請求金額</div>
         <div class="amount">${yen(totals.total_amount)}-</div>
     </div>
