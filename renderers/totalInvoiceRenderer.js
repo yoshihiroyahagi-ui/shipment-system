@@ -107,11 +107,45 @@ body{
   margin-top:14px;
   align-items:start;
 }
-.label{background:var(--main);color:#fff;padding:8px 16px;font-weight:bold;display:inline-block;min-width:96px;text-align:center}
-.box{border:1px solid var(--border);padding:18px;min-height:100px;line-height:1.6}
-.amount-box{border:1px solid var(--border);text-align:center;padding:16px}
-.amount-title{background:var(--main);color:#fff;display:inline-block;padding:6px 22px;font-weight:bold;margin-top:-34px}
-.amount{font-size:34px;font-weight:bold;margin-top:18px}
+.label{
+  background:var(--main);
+  color:#fff;
+  padding:4px 10px;
+  font-size:10px;
+  font-weight:700;
+  display:inline-block;
+  min-width:60px;
+  text-align:center;
+}
+.box{
+  border:1px solid var(--border);
+  padding:12px;
+  min-height:70px;
+  line-height:1.5;
+  font-size:12px;
+}
+.amount-box{
+  border:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:20px;
+  min-height:70px;
+  padding:10px 20px;
+}
+.amount-title{
+  color:var(--main);
+  background:none;
+  padding:0;
+  font-size:18px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.amount{
+  font-size:24px;
+  font-weight:700;
+  white-space:nowrap;
+}
 .company-box{
   position:relative;
   margin-left:0;
@@ -122,8 +156,8 @@ body{
 
 .company-main{
   display:grid;
-  grid-template-columns:14mm 1fr;
-  gap:4mm;
+  grid-template-columns:18mm 1fr;
+  gap:7mm;
   align-items:start;
 }
 
@@ -134,7 +168,7 @@ body{
 }
 
 .company-name{
-  font-size:12px;
+  font-size:16px;
   font-weight:900;
   white-space:nowrap;
   line-height:1.2;
