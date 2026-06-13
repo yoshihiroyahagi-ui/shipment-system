@@ -331,12 +331,12 @@ td{
       </div>
     </div>
 
+   
     <div class="amount-wrap">
-        <div class="amount-wrap">
         <div class="amount-title">御請求金額</div>
         <div class="amount">${yen(totals.total_amount)}-</div>
     </div>
-    </div>
+    
 
 
     <div class="company-box">
