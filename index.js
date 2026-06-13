@@ -284,7 +284,8 @@ console.log('[invoice totals]', {
 
 async function buildTotalInvoiceData({
   customerCode,
-  billingMonth
+  billingMonth,
+  invoiceDate
 }) {
 
   if (!customerCode || !billingMonth) {
@@ -367,7 +368,10 @@ async function buildTotalInvoiceData({
       exempt_amount: exempt,
       advance_amount: advance,
       total_amount: total,
-
+      invoice_date:
+      invoiceDate ||
+      first.invoice_date ||
+      new Date(),
       remark1: inv.commercial_invoice_no || '',
       remark2: inv.bulk_detail_note || '',
       remark3: '',

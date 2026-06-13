@@ -34,7 +34,15 @@ export function renderTotalInvoiceHtml(data = {}) {
   const rows = data.rows || [];
   const totals = data.totals || {};
 
-  const invoiceDate = data.invoice_date || data.invoiceDate || new Date();
+  const invoiceDate =
+  req.query.invoice_date || null;
+
+const data =
+  await buildTotalInvoiceData({
+    customerCode,
+    billingMonth,
+    invoiceDate
+  });
   const dueDate = data.due_date || data.payment_due_date || data.dueDate || '';
 
   const rowHtml = rows.map((r, i) => `
