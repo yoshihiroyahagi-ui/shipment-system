@@ -44,6 +44,12 @@ export function renderTotalInvoiceHtml(data = {}) {
   const totals = data.totals || {};
 
   const invoiceDate = data.invoice_date || data.invoiceDate || new Date();
+
+console.log('[bulk invoice date]', {
+  raw: data.invoice_date,
+  invoiceDate,
+  formatted: formatDateJa(invoiceDate)
+});
   const dueDate = data.due_date || data.payment_due_date || data.dueDate || '';
 
   const rowHtml = rows.map((r, i) => `
