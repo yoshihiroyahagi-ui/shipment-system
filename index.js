@@ -5684,6 +5684,61 @@ app.get('/api/invoice/bulk-detail/html', async (req, res) => {
     `);
   }
 });
+app.get('/api/invoice/bulk-detail/pdf', async (req, res) => {
+  let browser;
+
+  try {
+    const customerCode = String(req.query.customer_code || '').trim();
+    const billingMonth = String(req.query.billing_month || '').trim();
+    const invoiceDate = req.query.invoice_date || null;
+
+    const data = await buildTotalInvoiceData({
+      customerCode,
+      billingMonth,
+      invoiceDate
+    });
+
+    const html = renderTotalInvoiceHtml(data);
+
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    await page.setContent(html, {
+      waitUntil: 'networkidle0'
+    });
+
+    const pdf = await page.pdf({
+      format: 'A4',
+      landscape: true,
+      printBackground: true,
+      margin: {
+        top: '8mm',
+        right: '8mm',
+        bottom: '8mm',
+        left: '8mm'
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="bulk-invoice-detail-${customerCode}-${billingMonth}.pdf"`
+    );
+
+    res.send(pdf);
+
+  } catch (err) {
+    console.error('GET /api/invoice/bulk-detail/pdf error:', err);
+    res.status(500).send('一括請求明細PDF生成エラー: ' + err.message);
+
+  } finally {
+    if (browser) await browser.close();
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
