@@ -16,8 +16,17 @@ function yen(v) {
 
 function formatDateJa(v) {
   if (!v) return '';
+
+  const s = String(v).slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (m) {
+    return `${m[1]}年 ${Number(m[2])}月 ${Number(m[3])}日`;
+  }
+
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return esc(v);
+
   return `${d.getFullYear()}年 ${d.getMonth() + 1}月 ${d.getDate()}日`;
 }
 
