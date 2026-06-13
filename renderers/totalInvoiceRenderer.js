@@ -125,20 +125,31 @@ body{
 .box{
   border:1px solid var(--border);
   padding:12px;
+  height:70px;
   min-height:70px;
+  box-sizing:border-box;
+
   line-height:1.5;
-  font-size:12px;
+  font-size:13px;
   font-weight:700;
 }
+.amount-wrap{
+  padding-top:26px;
+}
+
 .amount-box{
-  border:1px solid var(--border);
+  border:1px solid var(--border) !important;
   height:70px;
+  min-height:70px;
+  box-sizing:border-box;
+
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:18px;
-  padding:0 14px;
-  text-align:center;
+  gap:14px;
+
+  padding:0 12px;
+  background:#fff;
 }
 .amount-title{
   color:var(--main);
@@ -155,9 +166,6 @@ body{
   margin:0;
 }
 
-.amount-wrap{
-  padding-top:26px;
-}
 .company-box{
   position:relative;
   margin-left:0;
