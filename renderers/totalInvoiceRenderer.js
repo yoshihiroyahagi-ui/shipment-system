@@ -134,7 +134,7 @@ body{
   font-weight:700;
 }
 .amount-wrap{
-  padding-top:52px;
+  padding-top:67.5px;
 }
 
 .amount-box{
