@@ -128,13 +128,13 @@ body{
 }
 
 .logo-img{
-  width:14mm;
+  width:20mm;
   height:auto;
   margin-top:1mm;
 }
 
 .company-name{
-  font-size:10px;
+  font-size:12px;
   font-weight:900;
   white-space:nowrap;
   line-height:1.2;
@@ -143,7 +143,7 @@ body{
 .company-detail{
   grid-column:2;
   font-size:6.5px;
-  line-height:1.25;
+  line-height:1.3;
   margin-top:1mm;
   white-space:nowrap;
 }
@@ -229,19 +229,25 @@ td{
 @media print{
   @page{
     size:A4 landscape;
-    margin:8mm;
+    margin:0;
   }
 
   html,body{
     width:297mm;
     height:210mm;
+    margin:0;
+    padding:0;
+    overflow:hidden;
   }
 
   .page{
-    width:100%;
-    min-height:auto;
+    width:297mm;
+    height:210mm;
+    min-height:210mm;
     margin:0;
-    padding:0;
+    padding:8mm;
+    position:relative;
+    overflow:hidden;
   }
 }
 </style>

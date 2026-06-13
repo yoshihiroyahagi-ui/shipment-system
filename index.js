@@ -5712,16 +5712,16 @@ app.get('/api/invoice/bulk-detail/pdf', async (req, res) => {
     });
 
     const pdf = await page.pdf({
-      format: 'A4',
-      landscape: true,
-      printBackground: true,
-      margin: {
-        top: '8mm',
-        right: '8mm',
-        bottom: '8mm',
-        left: '8mm'
-      }
-    });
+  format: 'A4',
+  landscape: true,
+  printBackground: true,
+  margin: {
+    top: '0mm',
+    right: '0mm',
+    bottom: '0mm',
+    left: '0mm'
+  }
+});
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
