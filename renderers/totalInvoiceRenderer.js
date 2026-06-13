@@ -117,12 +117,18 @@ body{
   min-width:60px;
   text-align:center;
 }
+  .invoice-date-text{
+  margin-left:14px;
+  font-size:11px;
+  font-weight:700;
+}
 .box{
   border:1px solid var(--border);
   padding:12px;
   min-height:70px;
   line-height:1.5;
   font-size:12px;
+  font-weight:700;
 }
 .amount-box{
   border:1px solid var(--border);
@@ -254,9 +260,9 @@ td{
 
 .bottom-box{
   border:1px solid var(--border);
-  min-height:20mm;
-  padding:6px;
-  line-height:1.35;
+  min-height:16mm;
+  padding:5px 8px;
+  line-height:1.25;
   font-size:8px;
 }
 
@@ -299,7 +305,9 @@ td{
     <div>
       <div style="margin-bottom:12px;">
         <span class="label">請求日</span>
-        <span style="margin-left:24px;font-size:18px;">${formatDateJa(invoiceDate)}</span>
+        <span class="invoice-date-text">
+            ${formatDateJa(invoiceDate)}    
+        </span>
       </div>
 
       <span class="label">ご請求先</span>
@@ -309,12 +317,11 @@ td{
       </div>
     </div>
 
-    <div style="padding-top:58px;">
-      <div class="amount-box">
+    <div class="amount-wrap">
         <div class="amount-title">御請求金額</div>
         <div class="amount">${yen(totals.total_amount)}-</div>
     </div>
-    </div>
+
 
     <div class="company-box">
   <div class="company-main">
