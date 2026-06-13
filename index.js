@@ -368,10 +368,6 @@ async function buildTotalInvoiceData({
       exempt_amount: exempt,
       advance_amount: advance,
       total_amount: total,
-      invoice_date:
-      invoiceDate ||
-      first.invoice_date ||
-      new Date(),
       remark1: inv.commercial_invoice_no || '',
       remark2: inv.bulk_detail_note || '',
       remark3: '',
@@ -401,7 +397,10 @@ async function buildTotalInvoiceData({
     customer_name: first.customer_name || '',
     billing_month: billingMonth,
 
-    invoice_date: first.invoice_date || new Date(),
+    invoice_date:
+      invoiceDate ||
+      first.invoice_date ||
+      new Date(),
     due_date:
       first.payment_due_date ||
       first.due_date ||

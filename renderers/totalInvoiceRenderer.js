@@ -40,6 +40,7 @@ function renderRemark(r) {
 }
 
 export function renderTotalInvoiceHtml(data = {}) {
+  console.log('[renderTotalInvoiceHtml called]', data);
   const rows = data.rows || [];
   const totals = data.totals || {};
 
