@@ -6058,6 +6058,88 @@ app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/analysis/receivable-detail', async (req, res) => {
+  try {
+    const paymentMonth =
+      String(req.query.payment_month || '').trim();
+
+    let query = supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        invoice_no,
+        job_no,
+        billing_month,
+        invoice_date,
+        payment_due_date,
+        received_date,
+        receivable_status,
+        customer_code,
+        customer_name,
+        free_title,
+        cargo_summary,
+        invoice_lines (
+          item_name,
+          billing_amount_net,
+          billing_tax_amount,
+          billing_amount_gross,
+          billing_tax_type,
+          show_on_invoice,
+          line_note,
+          memo
+        )
+      `)
+      .order('payment_due_date', { ascending: true });
+
+    const { data: headers, error } = await query;
+    if (error) throw error;
+
+    const rows = [];
+
+    (headers || []).forEach(function(h) {
+      const dueDate = h.payment_due_date || '';
+
+      if (paymentMonth) {
+        if (!String(dueDate).startsWith(paymentMonth)) {
+          return;
+        }
+      }
+
+      (h.invoice_lines || []).forEach(function(line) {
+        if (line.show_on_invoice === false) return;
+
+        rows.push({
+          payment_month: String(dueDate).slice(0, 7),
+          customer_code: h.customer_code || '',
+          customer_name: h.customer_name || '',
+          invoice_no: h.invoice_no || '',
+          job_no: h.job_no || '',
+          billing_month: h.billing_month || '',
+          invoice_date: h.invoice_date || '',
+          payment_due_date: h.payment_due_date || '',
+          received_date: h.received_date || '',
+          receivable_status: h.receivable_status || 'unpaid',
+          project_name: h.free_title || h.cargo_summary || '',
+          item_name: line.item_name || '',
+          billing_tax_type: line.billing_tax_type || '',
+          billing_amount_net: Number(line.billing_amount_net || 0),
+          billing_tax_amount: Number(line.billing_tax_amount || 0),
+          billing_amount_gross: Number(line.billing_amount_gross || 0),
+          memo: line.line_note || line.memo || ''
+        });
+      });
+    });
+
+    res.json({ success: true, rows });
+
+  } catch (err) {
+    console.error('GET /api/invoice/analysis/receivable-detail error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
   try {
     const paymentMonth =
