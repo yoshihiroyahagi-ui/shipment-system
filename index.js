@@ -5959,6 +5959,93 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
+  try {
+    const billingMonth =
+      String(req.query.billing_month || '').trim();
+
+    let query = supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        billing_month,
+        invoice_no,
+        job_no,
+        customer_name,
+        free_title,
+        cargo_summary,
+        payable_lines (
+          payable_id,
+          vendor_name,
+          payable_item_name,
+          payable_amount_net,
+          payable_tax_amount,
+          payable_amount_gross,
+          status,
+          payment_due_date,
+          payment_date,
+          vendor_invoice_no,
+          memo
+        )
+      `)
+      .order('billing_month', { ascending: true });
+
+    if (billingMonth) {
+      query = query.eq('billing_month', billingMonth);
+    }
+
+    const { data: headers, error } = await query;
+
+    if (error) throw error;
+
+    const rows = [];
+
+    (headers || []).forEach(function(h) {
+      (h.payable_lines || []).forEach(function(p) {
+        rows.push({
+          billing_month: h.billing_month || '',
+          vendor_name: p.vendor_name || '未設定',
+          payment_due_date: p.payment_due_date || '',
+          payment_date: p.payment_date || '',
+          status: p.status || '',
+          invoice_no: h.invoice_no || '',
+          job_no: h.job_no || '',
+          customer_name: h.customer_name || '',
+          project_name: h.free_title || h.cargo_summary || '',
+          payable_item_name: p.payable_item_name || '',
+          payable_amount_net: Number(p.payable_amount_net || 0),
+          payable_tax_amount: Number(p.payable_tax_amount || 0),
+          payable_amount_gross: Number(p.payable_amount_gross || 0),
+          vendor_invoice_no: p.vendor_invoice_no || '',
+          memo: p.memo || ''
+        });
+      });
+    });
+
+    rows.sort(function(a, b) {
+      if (a.vendor_name !== b.vendor_name) {
+        return a.vendor_name.localeCompare(b.vendor_name, 'ja');
+      }
+      return String(a.job_no).localeCompare(String(b.job_no), 'ja');
+    });
+
+    res.json({
+      success: true,
+      rows
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/invoice/analysis/vendor-detail error:',
+      err
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
