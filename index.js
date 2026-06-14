@@ -5961,8 +5961,8 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
 });
 app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
   try {
-    const billingMonth =
-      String(req.query.billing_month || '').trim();
+    const paymentMonth =
+      String(req.query.payment_month || '').trim();
 
     let query = supabase
       .from('invoice_headers')
@@ -5990,10 +5990,6 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
       `)
       .order('billing_month', { ascending: true });
 
-    if (billingMonth) {
-      query = query.eq('billing_month', billingMonth);
-    }
-
     const { data: headers, error } = await query;
 
     if (error) throw error;
@@ -6001,26 +5997,37 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
     const rows = [];
 
     (headers || []).forEach(function(h) {
-      (h.payable_lines || []).forEach(function(p) {
-        rows.push({
-          billing_month: h.billing_month || '',
-          vendor_name: p.vendor_name || '未設定',
-          payment_due_date: p.payment_due_date || '',
-          payment_date: p.payment_date || '',
-          status: p.status || '',
-          invoice_no: h.invoice_no || '',
-          job_no: h.job_no || '',
-          customer_name: h.customer_name || '',
-          project_name: h.free_title || h.cargo_summary || '',
-          payable_item_name: p.payable_item_name || '',
-          payable_amount_net: Number(p.payable_amount_net || 0),
-          payable_tax_amount: Number(p.payable_tax_amount || 0),
-          payable_amount_gross: Number(p.payable_amount_gross || 0),
-          vendor_invoice_no: p.vendor_invoice_no || '',
-          memo: p.memo || ''
-        });
-      });
+  (h.payable_lines || []).forEach(function(p) {
+
+    const paymentDate =
+      p.payment_date || p.payment_due_date || '';
+
+    if (paymentMonth) {
+      if (!paymentDate.startsWith(paymentMonth)) {
+        return;
+      }
+    }
+
+    rows.push({
+      billing_month: h.billing_month || '',
+      payment_month: paymentDate.slice(0, 7),
+      vendor_name: p.vendor_name || '未設定',
+      payment_due_date: p.payment_due_date || '',
+      payment_date: p.payment_date || '',
+      status: p.status || '',
+      invoice_no: h.invoice_no || '',
+      job_no: h.job_no || '',
+      customer_name: h.customer_name || '',
+      project_name: h.free_title || h.cargo_summary || '',
+      payable_item_name: p.payable_item_name || '',
+      payable_amount_net: Number(p.payable_amount_net || 0),
+      payable_tax_amount: Number(p.payable_tax_amount || 0),
+      payable_amount_gross: Number(p.payable_amount_gross || 0),
+      vendor_invoice_no: p.vendor_invoice_no || '',
+      memo: p.memo || ''
     });
+  });
+});
 
     rows.sort(function(a, b) {
       if (a.vendor_name !== b.vendor_name) {
