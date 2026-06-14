@@ -6046,6 +6046,94 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
+  try {
+    const billingMonth =
+      String(req.query.billing_month || '').trim();
+
+    let query = supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        billing_month,
+        payable_lines (
+          vendor_name,
+          payable_amount_net,
+          payable_tax_amount,
+          payable_amount_gross,
+          status,
+          payment_date
+        )
+      `);
+
+    if (billingMonth) {
+      query = query.eq('billing_month', billingMonth);
+    }
+
+    const { data: headers, error } = await query;
+
+    if (error) throw error;
+
+    const map = {};
+
+    (headers || []).forEach(function(h) {
+      (h.payable_lines || []).forEach(function(p) {
+        const vendor =
+          p.vendor_name || '未設定';
+
+        if (!map[vendor]) {
+          map[vendor] = {
+            vendor_name: vendor,
+            payable_amount_net: 0,
+            payable_tax_amount: 0,
+            payable_amount_gross: 0,
+            line_count: 0,
+            paid_count: 0,
+            unpaid_count: 0
+          };
+        }
+
+        map[vendor].payable_amount_net +=
+          Number(p.payable_amount_net || 0);
+
+        map[vendor].payable_tax_amount +=
+          Number(p.payable_tax_amount || 0);
+
+        map[vendor].payable_amount_gross +=
+          Number(p.payable_amount_gross || 0);
+
+        map[vendor].line_count += 1;
+
+        if (p.payment_date || p.status === 'paid') {
+          map[vendor].paid_count += 1;
+        } else {
+          map[vendor].unpaid_count += 1;
+        }
+      });
+    });
+
+    const rows =
+      Object.values(map).sort(function(a, b) {
+        return b.payable_amount_gross - a.payable_amount_gross;
+      });
+
+    res.json({
+      success: true,
+      rows
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/invoice/analysis/vendor-summary error:',
+      err
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
