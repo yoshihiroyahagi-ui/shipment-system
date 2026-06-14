@@ -5858,6 +5858,107 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
+  try {
+    const billingMonth =
+      String(req.query.billing_month || '').trim();
+
+    let headerQuery = supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        billing_month,
+        customer_code,
+        customer_name,
+        invoice_lines (
+          invoice_line_id,
+          billing_amount_net,
+          billing_tax_amount,
+          billing_amount_gross,
+          billing_tax_type,
+          show_on_invoice,
+          payable_lines (
+            payable_amount_net
+          )
+        )
+      `);
+
+    if (billingMonth) {
+      headerQuery =
+        headerQuery.eq('billing_month', billingMonth);
+    }
+
+    const {
+      data: headers,
+      error: headerError
+    } = await headerQuery;
+
+    if (headerError) throw headerError;
+
+    const map = {};
+
+    headers.forEach(h => {
+      const key =
+        h.customer_code || h.customer_name || 'UNKNOWN';
+
+      if (!map[key]) {
+        map[key] = {
+          customer_code: h.customer_code || '',
+          customer_name: h.customer_name || '未設定',
+          sales_net: 0,
+          cost_net: 0,
+          gross_profit: 0,
+          gross_margin: 0
+        };
+      }
+
+      (h.invoice_lines || []).forEach(line => {
+        if (line.show_on_invoice === false) return;
+
+        const salesNet =
+          Number(line.billing_amount_net || 0);
+
+        map[key].sales_net += salesNet;
+
+        (line.payable_lines || []).forEach(p => {
+          map[key].cost_net +=
+            Number(p.payable_amount_net || 0);
+        });
+      });
+    });
+
+    const rows =
+      Object.values(map).map(row => {
+        row.gross_profit =
+          row.sales_net - row.cost_net;
+
+        row.gross_margin =
+          row.sales_net > 0
+            ? Number(((row.gross_profit / row.sales_net) * 100).toFixed(1))
+            : 0;
+
+        return row;
+      });
+
+    rows.sort((a, b) => b.sales_net - a.sales_net);
+
+    res.json({
+      success: true,
+      rows
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/invoice/analysis/customer-ranking error:',
+      err
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
