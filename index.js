@@ -5860,8 +5860,7 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
 });
 app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
   try {
-    const billingMonth =
-      String(req.query.billing_month || '').trim();
+    const billingMonth = String(req.query.billing_month || '').trim();
 
     let headerQuery = supabase
       .from('invoice_headers')
@@ -5884,87 +5883,93 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
       `);
 
     if (billingMonth) {
-      headerQuery =
-        headerQuery.eq('billing_month', billingMonth);
+      headerQuery = headerQuery.eq('billing_month', billingMonth);
     }
 
-    const {
-      data: headers,
-      error: headerError
-    } = await headerQuery;
-
+    const { data: headers, error: headerError } = await headerQuery;
     if (headerError) throw headerError;
 
     const map = {};
 
-    headers.forEach(h => {
-      const key =
-        h.customer_code || h.customer_name || 'UNKNOWN';
+    (headers || []).forEach(function(h) {
+      const key = h.customer_code || h.customer_name || 'UNKNOWN';
 
       if (!map[key]) {
         map[key] = {
           customer_code: h.customer_code || '',
           customer_name: h.customer_name || '未設定',
           sales_net: 0,
+          taxable_amount: 0,
+          tax_amount: 0,
+          non_taxable: 0,
+          exempt: 0,
+          zero: 0,
+          out_of_scope: 0,
+          advance_payment: 0,
+          sales_total: 0,
           cost_net: 0,
           gross_profit: 0,
           gross_margin: 0
         };
       }
 
-      (h.invoice_lines || []).forEach(line => {
+      (h.invoice_lines || []).forEach(function(line) {
         if (line.show_on_invoice === false) return;
 
-        const salesNet =
-          Number(line.billing_amount_net || 0);
+        const net = Number(line.billing_amount_net || 0);
+        const tax = Number(line.billing_tax_amount || 0);
+        const gross = Number(line.billing_amount_gross || 0);
+        const taxType = line.billing_tax_type || 'taxable';
 
-        map[key].sales_net += salesNet;
+        map[key].sales_net += net;
+        map[key].sales_total += gross;
 
-        (line.payable_lines || []).forEach(p => {
-          map[key].cost_net +=
-            Number(p.payable_amount_net || 0);
+        if (taxType === 'taxable') {
+          map[key].taxable_amount += net;
+          map[key].tax_amount += tax;
+        } else if (taxType === 'non_taxable') {
+          map[key].non_taxable += net;
+        } else if (taxType === 'exempt') {
+          map[key].exempt += net;
+        } else if (taxType === 'zero') {
+          map[key].zero += net;
+        } else if (taxType === 'advance') {
+          map[key].advance_payment += net;
+        } else {
+          map[key].out_of_scope += net;
+        }
+
+        (line.payable_lines || []).forEach(function(p) {
+          map[key].cost_net += Number(p.payable_amount_net || 0);
         });
       });
     });
 
-    const rows =
-      Object.values(map).map(row => {
-        row.gross_profit =
-          row.sales_net - row.cost_net;
-
-        row.gross_margin =
-          row.sales_net > 0
-            ? Number(((row.gross_profit / row.sales_net) * 100).toFixed(1))
-            : 0;
-
-        return row;
-      });
-
-    rows.sort((a, b) => b.sales_net - a.sales_net);
-
-    res.json({
-      success: true,
-      rows
+    const rows = Object.values(map).map(function(row) {
+      row.gross_profit = row.sales_net - row.cost_net;
+      row.gross_margin =
+        row.sales_net > 0
+          ? Number(((row.gross_profit / row.sales_net) * 100).toFixed(1))
+          : 0;
+      return row;
     });
+
+    rows.sort(function(a, b) {
+      return b.sales_net - a.sales_net;
+    });
+
+    res.json({ success: true, rows });
 
   } catch (err) {
-    console.error(
-      'GET /api/invoice/analysis/customer-ranking error:',
-      err
-    );
-
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    console.error('GET /api/invoice/analysis/customer-ranking error:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
   try {
-    const paymentMonth =
-      String(req.query.payment_month || '').trim();
+    const paymentMonth = String(req.query.payment_month || '').trim();
 
-    let query = supabase
+    const { data: headers, error } = await supabase
       .from('invoice_headers')
       .select(`
         invoice_id,
@@ -5982,7 +5987,6 @@ app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
         )
       `);
 
-    const { data: headers, error } = await query;
     if (error) throw error;
 
     const map = {};
@@ -5990,22 +5994,23 @@ app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
     (headers || []).forEach(function(h) {
       const dueDate = h.payment_due_date || '';
 
-      if (paymentMonth) {
-        if (!String(dueDate).startsWith(paymentMonth)) {
-          return;
-        }
+      if (paymentMonth && !String(dueDate).startsWith(paymentMonth)) {
+        return;
       }
 
-      const key =
-        h.customer_code || h.customer_name || 'UNKNOWN';
+      const key = h.customer_code || h.customer_name || 'UNKNOWN';
 
       if (!map[key]) {
         map[key] = {
           customer_code: h.customer_code || '',
           customer_name: h.customer_name || '未設定',
           sales_net: 0,
+          taxable_amount: 0,
           tax_amount: 0,
           non_taxable: 0,
+          exempt: 0,
+          zero: 0,
+          out_of_scope: 0,
           advance_payment: 0,
           sales_total: 0,
           invoice_count: 0,
@@ -6028,34 +6033,37 @@ app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
         const net = Number(line.billing_amount_net || 0);
         const tax = Number(line.billing_tax_amount || 0);
         const gross = Number(line.billing_amount_gross || 0);
+        const taxType = line.billing_tax_type || 'taxable';
 
         map[key].sales_net += net;
-        map[key].tax_amount += tax;
         map[key].sales_total += gross;
 
-        if (line.billing_tax_type === 'non_taxable') {
+        if (taxType === 'taxable') {
+          map[key].taxable_amount += net;
+          map[key].tax_amount += tax;
+        } else if (taxType === 'non_taxable') {
           map[key].non_taxable += net;
-        }
-
-        if (line.billing_tax_type === 'advance') {
+        } else if (taxType === 'exempt') {
+          map[key].exempt += net;
+        } else if (taxType === 'zero') {
+          map[key].zero += net;
+        } else if (taxType === 'advance') {
           map[key].advance_payment += net;
+        } else {
+          map[key].out_of_scope += net;
         }
       });
     });
 
-    const rows =
-      Object.values(map).sort(function(a, b) {
-        return b.sales_total - a.sales_total;
-      });
+    const rows = Object.values(map).sort(function(a, b) {
+      return b.sales_total - a.sales_total;
+    });
 
     res.json({ success: true, rows });
 
   } catch (err) {
     console.error('GET /api/invoice/analysis/receivable-summary error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 app.get('/api/invoice/analysis/receivable-detail', async (req, res) => {
@@ -6160,6 +6168,7 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
           vendor_name,
           payable_item_name,
           payable_amount_net,
+          payable_tax_type,
           payable_tax_amount,
           payable_amount_gross,
           status,
@@ -6202,6 +6211,7 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
       project_name: h.free_title || h.cargo_summary || '',
       payable_item_name: p.payable_item_name || '',
       payable_amount_net: Number(p.payable_amount_net || 0),
+      payable_tax_type: p.payable_tax_type || '',
       payable_tax_amount: Number(p.payable_tax_amount || 0),
       payable_amount_gross: Number(p.payable_amount_gross || 0),
       vendor_invoice_no: p.vendor_invoice_no || '',
@@ -6236,10 +6246,9 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
 });
 app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
   try {
-    const paymentMonth =
-      String(req.query.payment_month || '').trim();
+    const paymentMonth = String(req.query.payment_month || '').trim();
 
-    let query = supabase
+    const { data: headers, error } = await supabase
       .from('invoice_headers')
       .select(`
         invoice_id,
@@ -6247,14 +6256,14 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
         payable_lines (
           vendor_name,
           payable_amount_net,
+          payable_tax_type,
           payable_tax_amount,
           payable_amount_gross,
           status,
+          payment_due_date,
           payment_date
         )
       `);
-
-    const { data: headers, error } = await query;
 
     if (error) throw error;
 
@@ -6262,24 +6271,26 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
 
     (headers || []).forEach(function(h) {
       (h.payable_lines || []).forEach(function(p) {
+        const paymentDate = p.payment_date || p.payment_due_date || '';
 
-        const paymentDate =
-          p.payment_date || p.payment_due_date || '';
-
-        if (paymentMonth) {
-          if (!paymentDate.startsWith(paymentMonth)) {
-            return;
-          }
+        if (paymentMonth && !paymentDate.startsWith(paymentMonth)) {
+          return;
         }
 
-        const vendor =
-          p.vendor_name || '未設定';
+        const vendor = p.vendor_name || '未設定';
 
         if (!map[vendor]) {
           map[vendor] = {
             vendor_name: vendor,
+            payment_due_dates: [],
             payable_amount_net: 0,
-            payable_tax_amount: 0,
+            taxable_amount: 0,
+            tax_amount: 0,
+            non_taxable: 0,
+            exempt: 0,
+            zero: 0,
+            out_of_scope: 0,
+            advance_payment: 0,
             payable_amount_gross: 0,
             line_count: 0,
             paid_count: 0,
@@ -6287,45 +6298,55 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
           };
         }
 
-        map[vendor].payable_amount_net +=
-          Number(p.payable_amount_net || 0);
+        const net = Number(p.payable_amount_net || 0);
+        const tax = Number(p.payable_tax_amount || 0);
+        const gross = Number(p.payable_amount_gross || 0);
+        const taxType = p.payable_tax_type || 'taxable';
 
-        map[vendor].payable_tax_amount +=
-          Number(p.payable_tax_amount || 0);
+        if (p.payment_due_date && !map[vendor].payment_due_dates.includes(p.payment_due_date)) {
+          map[vendor].payment_due_dates.push(p.payment_due_date);
+        }
 
-        map[vendor].payable_amount_gross +=
-          Number(p.payable_amount_gross || 0);
+        map[vendor].payable_amount_net += net;
+        map[vendor].payable_amount_gross += gross;
+
+        if (taxType === 'taxable') {
+          map[vendor].taxable_amount += net;
+          map[vendor].tax_amount += tax;
+        } else if (taxType === 'non_taxable') {
+          map[vendor].non_taxable += net;
+        } else if (taxType === 'exempt') {
+          map[vendor].exempt += net;
+        } else if (taxType === 'zero') {
+          map[vendor].zero += net;
+        } else if (taxType === 'advance') {
+          map[vendor].advance_payment += net;
+        } else {
+          map[vendor].out_of_scope += net;
+        }
 
         map[vendor].line_count += 1;
 
         if (p.status === 'paid') {
           map[vendor].paid_count += 1;
         } else {
-          map[vendor].unpaid_count += 1;  
+          map[vendor].unpaid_count += 1;
         }
       });
     });
 
-    const rows =
-      Object.values(map).sort(function(a, b) {
-        return b.payable_amount_gross - a.payable_amount_gross;
-      });
-
-    res.json({
-      success: true,
-      rows
+    const rows = Object.values(map).map(function(row) {
+      row.payment_due_dates = row.payment_due_dates.sort().join(' / ');
+      return row;
+    }).sort(function(a, b) {
+      return b.payable_amount_gross - a.payable_amount_gross;
     });
+
+    res.json({ success: true, rows });
 
   } catch (err) {
-    console.error(
-      'GET /api/invoice/analysis/vendor-summary error:',
-      err
-    );
-
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    console.error('GET /api/invoice/analysis/vendor-summary error:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 app.listen(port, () => {
