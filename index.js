@@ -5742,20 +5742,92 @@ app.get('/api/invoice/bulk-detail/pdf', async (req, res) => {
 // GET /api/invoice/analysis/monthly
 app.get('/api/invoice/analysis/monthly', async (req, res) => {
   try {
+    const { data: headers, error } = await supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        billing_month,
+        invoice_date,
+        invoice_lines (
+          invoice_line_id,
+          billing_amount_net,
+          billing_tax_amount,
+          billing_amount_gross,
+          billing_tax_type,
+          show_on_invoice,
+          payable_lines (
+            payable_amount_net,
+            payable_tax_amount,
+            payable_amount_gross,
+            payable_tax_type
+          )
+        )
+      `)
+      .order('billing_month', { ascending: true });
 
-    // 集計処理
+    if (error) throw error;
+
+    const map = {};
+
+    headers.forEach(h => {
+      const month = h.billing_month || '';
+      if (!month) return;
+
+      if (!map[month]) {
+        map[month] = {
+          billing_month: month,
+          sales_net: 0,
+          tax_amount: 0,
+          non_taxable: 0,
+          advance_payment: 0,
+          sales_total: 0,
+          cost_net: 0,
+          gross_profit: 0,
+          gross_margin: 0
+        };
+      }
+
+      (h.invoice_lines || []).forEach(line => {
+        if (line.show_on_invoice === false) return;
+
+        const salesNet = Number(line.billing_amount_net || 0);
+        const tax = Number(line.billing_tax_amount || 0);
+        const gross = Number(line.billing_amount_gross || 0);
+
+        map[month].sales_net += salesNet;
+        map[month].tax_amount += tax;
+        map[month].sales_total += gross;
+
+        if (line.billing_tax_type === 'non_taxable') {
+          map[month].non_taxable += salesNet;
+        }
+
+        if (line.billing_tax_type === 'advance') {
+          map[month].advance_payment += salesNet;
+        }
+
+        const payables = line.payable_lines || [];
+        payables.forEach(p => {
+          map[month].cost_net += Number(p.payable_amount_net || 0);
+        });
+      });
+    });
+
+    Object.values(map).forEach(row => {
+      row.gross_profit = row.sales_net - row.cost_net;
+      row.gross_margin =
+        row.sales_net > 0
+          ? Number(((row.gross_profit / row.sales_net) * 100).toFixed(1))
+          : 0;
+    });
 
     res.json({
       success: true,
-      rows: []
+      rows: Object.values(map)
     });
 
   } catch (err) {
-    console.error(
-      'GET /api/invoice/analysis/monthly error:',
-      err
-    );
-
+    console.error('GET /api/invoice/analysis/monthly error:', err);
     res.status(500).json({
       success: false,
       error: err.message
