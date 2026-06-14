@@ -6298,10 +6298,10 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
 
         map[vendor].line_count += 1;
 
-        if (p.payment_date || p.status === 'paid') {
+        if (p.status === 'paid') {
           map[vendor].paid_count += 1;
         } else {
-          map[vendor].unpaid_count += 1;
+          map[vendor].unpaid_count += 1;  
         }
       });
     });
