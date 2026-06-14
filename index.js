@@ -5739,6 +5739,29 @@ app.get('/api/invoice/bulk-detail/pdf', async (req, res) => {
     if (browser) await browser.close();
   }
 });
+// GET /api/invoice/analysis/monthly
+app.get('/api/invoice/analysis/monthly', async (req, res) => {
+  try {
+
+    // 集計処理
+
+    res.json({
+      success: true,
+      rows: []
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/invoice/analysis/monthly error:',
+      err
+    );
+
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
