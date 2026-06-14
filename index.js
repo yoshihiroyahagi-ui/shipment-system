@@ -5742,12 +5742,14 @@ app.get('/api/invoice/bulk-detail/pdf', async (req, res) => {
 // GET /api/invoice/analysis/monthly
 app.get('/api/invoice/analysis/monthly', async (req, res) => {
   try {
-    const { data: headers, error } = await supabase
+    const billingMonth =
+      String(req.query.billing_month || '').trim();
+
+    let headerQuery = supabase
       .from('invoice_headers')
       .select(`
         invoice_id,
         billing_month,
-        invoice_date,
         invoice_lines (
           invoice_line_id,
           billing_amount_net,
@@ -5756,16 +5758,25 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
           billing_tax_type,
           show_on_invoice,
           payable_lines (
-            payable_amount_net,
-            payable_tax_amount,
-            payable_amount_gross,
-            payable_tax_type
+            payable_amount_net
           )
         )
       `)
       .order('billing_month', { ascending: true });
 
-    if (error) throw error;
+    if (billingMonth) {
+      headerQuery =
+        headerQuery.eq('billing_month', billingMonth);
+    }
+
+    const {
+      data: headers,
+      error: headerError
+    } = await headerQuery;
+
+    if (headerError) {
+      throw headerError;
+    }
 
     const map = {};
 
@@ -5790,9 +5801,14 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
       (h.invoice_lines || []).forEach(line => {
         if (line.show_on_invoice === false) return;
 
-        const salesNet = Number(line.billing_amount_net || 0);
-        const tax = Number(line.billing_tax_amount || 0);
-        const gross = Number(line.billing_amount_gross || 0);
+        const salesNet =
+          Number(line.billing_amount_net || 0);
+
+        const tax =
+          Number(line.billing_tax_amount || 0);
+
+        const gross =
+          Number(line.billing_amount_gross || 0);
 
         map[month].sales_net += salesNet;
         map[month].tax_amount += tax;
@@ -5806,18 +5822,22 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
           map[month].advance_payment += salesNet;
         }
 
-        const payables = line.payable_lines || [];
-        payables.forEach(p => {
-          map[month].cost_net += Number(p.payable_amount_net || 0);
+        (line.payable_lines || []).forEach(p => {
+          map[month].cost_net +=
+            Number(p.payable_amount_net || 0);
         });
       });
     });
 
     Object.values(map).forEach(row => {
-      row.gross_profit = row.sales_net - row.cost_net;
+      row.gross_profit =
+        row.sales_net - row.cost_net;
+
       row.gross_margin =
         row.sales_net > 0
-          ? Number(((row.gross_profit / row.sales_net) * 100).toFixed(1))
+          ? Number(
+              ((row.gross_profit / row.sales_net) * 100).toFixed(1)
+            )
           : 0;
     });
 
@@ -5827,7 +5847,11 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('GET /api/invoice/analysis/monthly error:', err);
+    console.error(
+      'GET /api/invoice/analysis/monthly error:',
+      err
+    );
+
     res.status(500).json({
       success: false,
       error: err.message
