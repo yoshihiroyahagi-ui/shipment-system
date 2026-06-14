@@ -6055,8 +6055,8 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
 });
 app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
   try {
-    const billingMonth =
-      String(req.query.billing_month || '').trim();
+    const paymentMonth =
+      String(req.query.payment_month || '').trim();
 
     let query = supabase
       .from('invoice_headers')
@@ -6073,10 +6073,6 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
         )
       `);
 
-    if (billingMonth) {
-      query = query.eq('billing_month', billingMonth);
-    }
-
     const { data: headers, error } = await query;
 
     if (error) throw error;
@@ -6085,6 +6081,16 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
 
     (headers || []).forEach(function(h) {
       (h.payable_lines || []).forEach(function(p) {
+
+        const paymentDate =
+          p.payment_date || p.payment_due_date || '';
+
+        if (paymentMonth) {
+          if (!paymentDate.startsWith(paymentMonth)) {
+            return;
+          }
+        }
+
         const vendor =
           p.vendor_name || '未設定';
 
