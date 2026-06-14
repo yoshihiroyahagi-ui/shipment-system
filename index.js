@@ -5959,6 +5959,105 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
     });
   }
 });
+app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
+  try {
+    const paymentMonth =
+      String(req.query.payment_month || '').trim();
+
+    let query = supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        customer_code,
+        customer_name,
+        payment_due_date,
+        received_date,
+        receivable_status,
+        invoice_lines (
+          billing_amount_net,
+          billing_tax_amount,
+          billing_amount_gross,
+          billing_tax_type,
+          show_on_invoice
+        )
+      `);
+
+    const { data: headers, error } = await query;
+    if (error) throw error;
+
+    const map = {};
+
+    (headers || []).forEach(function(h) {
+      const dueDate = h.payment_due_date || '';
+
+      if (paymentMonth) {
+        if (!String(dueDate).startsWith(paymentMonth)) {
+          return;
+        }
+      }
+
+      const key =
+        h.customer_code || h.customer_name || 'UNKNOWN';
+
+      if (!map[key]) {
+        map[key] = {
+          customer_code: h.customer_code || '',
+          customer_name: h.customer_name || '未設定',
+          sales_net: 0,
+          tax_amount: 0,
+          non_taxable: 0,
+          advance_payment: 0,
+          sales_total: 0,
+          invoice_count: 0,
+          received_count: 0,
+          unpaid_count: 0
+        };
+      }
+
+      map[key].invoice_count += 1;
+
+      if (h.received_date || h.receivable_status === 'paid') {
+        map[key].received_count += 1;
+      } else {
+        map[key].unpaid_count += 1;
+      }
+
+      (h.invoice_lines || []).forEach(function(line) {
+        if (line.show_on_invoice === false) return;
+
+        const net = Number(line.billing_amount_net || 0);
+        const tax = Number(line.billing_tax_amount || 0);
+        const gross = Number(line.billing_amount_gross || 0);
+
+        map[key].sales_net += net;
+        map[key].tax_amount += tax;
+        map[key].sales_total += gross;
+
+        if (line.billing_tax_type === 'non_taxable') {
+          map[key].non_taxable += net;
+        }
+
+        if (line.billing_tax_type === 'advance') {
+          map[key].advance_payment += net;
+        }
+      });
+    });
+
+    const rows =
+      Object.values(map).sort(function(a, b) {
+        return b.sales_total - a.sales_total;
+      });
+
+    res.json({ success: true, rows });
+
+  } catch (err) {
+    console.error('GET /api/invoice/analysis/receivable-summary error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
   try {
     const paymentMonth =
