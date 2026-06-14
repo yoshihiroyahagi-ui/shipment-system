@@ -1140,14 +1140,31 @@ app.post('/api/invoice/save', async (req, res) => {
     const grossProfitNet = salesNetTotal - payableNetTotal;
 
 let resolvedCustomerCode =
-  header.customer_code ||
-  null;
+  header.customer_code || null;
 
-if (!resolvedCustomerCode && header.shipment_id) {
+// 既存の customer_code を守る
+if (!resolvedCustomerCode) {
+  const { data: existingHeader, error: existingHeaderErr } = await supabase
+    .from('invoice_headers')
+    .select('customer_code')
+    .eq('invoice_id', invoice_id)
+    .maybeSingle();
+
+  if (existingHeaderErr) throw existingHeaderErr;
+
+  resolvedCustomerCode =
+    existingHeader?.customer_code || null;
+}
+
+// shipment_id / source_id から補完
+const sourceShipmentId =
+  header.shipment_id || header.source_id || null;
+
+if (!resolvedCustomerCode && sourceShipmentId) {
   const { data: shipmentForCustomer, error: shipCustErr } = await supabase
     .from('shipments')
     .select('customer_code')
-    .eq('shipment_id', header.shipment_id)
+    .eq('shipment_id', sourceShipmentId)
     .maybeSingle();
 
   if (shipCustErr) throw shipCustErr;
