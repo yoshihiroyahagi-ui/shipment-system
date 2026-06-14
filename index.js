@@ -1029,8 +1029,6 @@ app.post('/api/invoice/save', async (req, res) => {
         quantity: toNumber(line.quantity || 1),
         quantity_unit: line.quantity_unit || null,
 
-        bulk_detail_note: header.bulk_detail_note || null,
-
         billing_amount_net: c.net,
         billing_tax_type: billingTaxType,
         billing_tax_rate: billingTaxRate,
@@ -1098,8 +1096,6 @@ app.post('/api/invoice/save', async (req, res) => {
 
         quantity: toNumber(p.quantity || 1),
         quantity_unit: p.quantity_unit || null,
-
-        bulk_detail_note: header.bulk_detail_note || null,
 
         payable_amount_net: c.net,
         payable_tax_type: payableTaxType,
