@@ -914,12 +914,31 @@ app.get('/api/invoice/list', async (req, res) => {
     if (billingMonth) q = q.eq('billing_month', billingMonth);
     if (customerId) q = q.eq('customer_id', customerId);
     if (status) q = q.eq('status', status);
+    const shipmentIds = (invoices || [])
+  .map(inv => inv.source_id || inv.shipment_id)
+  .filter(Boolean);
 
+const { data: shipments, error: shipErr } = await supabase
+  .from('shipments')
+  .select('shipment_id,status')
+  .in('shipment_id', shipmentIds);
+
+if (shipErr) throw shipErr;
+
+const shipmentStatusMap = new Map(
+  (shipments || []).map(s => [s.shipment_id, s.status])
+);
+
+const filteredInvoices = (invoices || []).filter(inv => {
+  const sid = inv.source_id || inv.shipment_id;
+  const st = shipmentStatusMap.get(sid);
+  return st !== 'cancelled' && st !== 'canceled';
+});
     const { data, error } = await q;
 
     if (error) throw error;
 
-    res.json({ ok: true, rows: data || [] });
+    res.json({ ok: true, rows: filteredInvoices || [] });
   } catch (err) {
     console.error('[invoice/list] error:', err);
     res.status(500).json({ ok: false, error: err.message || String(err) });
