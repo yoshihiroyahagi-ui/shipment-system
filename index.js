@@ -914,8 +914,8 @@ app.get('/api/invoice/list', async (req, res) => {
     if (billingMonth) q = q.eq('billing_month', billingMonth);
     if (customerId) q = q.eq('customer_id', customerId);
     if (status) q = q.eq('status', status);
-    const shipmentIds = (invoices || [])
-  .map(inv => inv.source_id || inv.shipment_id)
+    const shipmentIds = (data || [])
+  .map(h => h.source_id || h.shipment_id)
   .filter(Boolean);
 
 const { data: shipments, error: shipErr } = await supabase
@@ -925,14 +925,20 @@ const { data: shipments, error: shipErr } = await supabase
 
 if (shipErr) throw shipErr;
 
-const shipmentStatusMap = new Map(
+const shipmentMap = new Map(
   (shipments || []).map(s => [s.shipment_id, s.status])
 );
 
-const filteredInvoices = (invoices || []).filter(h => {
+const filteredHeaders = (data || []).filter(h => {
   const sid = h.source_id || h.shipment_id;
-  const st = shipmentStatusMap.get(sid);
+  const st = shipmentMap.get(sid);
+
   return st !== 'cancelled' && st !== 'canceled';
+});
+
+res.json({
+  ok: true,
+  rows: filteredHeaders
 });
     const { data, error } = await q;
 
