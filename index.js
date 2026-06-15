@@ -914,37 +914,42 @@ app.get('/api/invoice/list', async (req, res) => {
     if (billingMonth) q = q.eq('billing_month', billingMonth);
     if (customerId) q = q.eq('customer_id', customerId);
     if (status) q = q.eq('status', status);
-    const shipmentIds = (data || [])
-  .map(h => h.source_id || h.shipment_id)
-  .filter(Boolean);
 
-const { data: shipments, error: shipErr } = await supabase
-  .from('shipments')
-  .select('shipment_id,status')
-  .in('shipment_id', shipmentIds);
-
-if (shipErr) throw shipErr;
-
-const shipmentMap = new Map(
-  (shipments || []).map(s => [s.shipment_id, s.status])
-);
-
-const filteredHeaders = (data || []).filter(h => {
-  const sid = h.source_id || h.shipment_id;
-  const st = shipmentMap.get(sid);
-
-  return st !== 'cancelled' && st !== 'canceled';
-});
-
-res.json({
-  ok: true,
-  rows: filteredHeaders
-});
     const { data, error } = await q;
 
     if (error) throw error;
 
-    res.json({ ok: true, rows: filteredInvoices || [] });
+    const shipmentIds = (data || [])
+      .map(h => h.source_id || h.shipment_id)
+      .filter(Boolean);
+
+    let filteredHeaders = data || [];
+
+    if (shipmentIds.length > 0) {
+      const { data: shipments, error: shipErr } = await supabase
+        .from('shipments')
+        .select('shipment_id,status')
+        .in('shipment_id', shipmentIds);
+
+      if (shipErr) throw shipErr;
+
+      const shipmentMap = new Map(
+        (shipments || []).map(s => [s.shipment_id, s.status])
+      );
+
+      filteredHeaders = (data || []).filter(h => {
+        const sid = h.source_id || h.shipment_id;
+        const st = shipmentMap.get(sid);
+
+        return st !== 'cancelled' && st !== 'canceled';
+      });
+    }
+
+    res.json({
+      ok: true,
+      rows: filteredHeaders
+    });
+
   } catch (err) {
     console.error('[invoice/list] error:', err);
     res.status(500).json({ ok: false, error: err.message || String(err) });
