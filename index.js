@@ -5023,7 +5023,10 @@ app.post('/api/admin/customs/request', async (req, res) => {
       inboundNo: requestData.inboundNo || '',
       currency: requestData.currency || '',
       incoterms: requestData.incoterms || '',
-      brokerCode: requestData.brokerId || '',
+      brokerCode:
+      requestData.broker_code ||
+      requestData.brokerId ||
+      '',
       line0: requestData.line0 || {}
     };
 
