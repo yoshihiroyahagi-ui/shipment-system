@@ -929,8 +929,8 @@ const shipmentStatusMap = new Map(
   (shipments || []).map(s => [s.shipment_id, s.status])
 );
 
-const filteredInvoices = (invoices || []).filter(inv => {
-  const sid = inv.source_id || inv.shipment_id;
+const filteredInvoices = (invoices || []).filter(h => {
+  const sid = h.source_id || h.shipment_id;
   const st = shipmentStatusMap.get(sid);
   return st !== 'cancelled' && st !== 'canceled';
 });
