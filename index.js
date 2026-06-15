@@ -5056,8 +5056,10 @@ const brokerCode =
     requestData.brokerId
   );
 
+customsJsonData.brokerCode = brokerCode;
+
     const updatePayload = {
-      broker_code: requestData.brokerId || null,
+      broker_code: brokerCode || null,
       customs_status: actionType === 'submit' ? 'DOCS_CHECK' : undefined,
       customs_data: JSON.stringify(customsJsonData),
       inbound_no: requestData.inboundNo || null,
@@ -5105,7 +5107,7 @@ const brokerCode =
     const { data: broker } = await supabase
       .from('partners')
       .select('partner_code, partner_name, email, contact_email')
-      .eq('partner_code', requestData.brokerId)
+      .eq('partner_code', brokerCode)
       .maybeSingle();
 
     const { data: customer } = await supabase
@@ -5123,7 +5125,7 @@ const brokerCode =
       drivePayload: {
         shipmentId,
         jobNo: requestData.jobNo || shipment.job_no || shipmentId,
-        brokerCode: requestData.brokerId || shipment.broker_code || '',
+        brokerCode: brokerCode || shipment.broker_code || '',
         brokerName: broker?.partner_name || '通関業者',
         brokerEmail: broker?.email || broker?.contact_email || '',
         customerName: customer?.customer_name || shipment.customer_code || '',
