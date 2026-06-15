@@ -908,7 +908,7 @@ app.get('/api/invoice/list', async (req, res) => {
     let q = supabase
       .from('invoice_headers')
       .select('*')
-      .not('status', 'in', '("cancelled","canceled")')
+      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
       .order('created_at', { ascending: false });
 
     if (billingMonth) q = q.eq('billing_month', billingMonth);
@@ -937,11 +937,13 @@ app.get('/api/invoice/list', async (req, res) => {
         (shipments || []).map(s => [s.shipment_id, s.status])
       );
 
-      filteredHeaders = (data || []).filter(h => {
+      const cancelledStatuses = ['cancelled', 'canceled', 'cancel', 'キャンセル'];
+
+      const filteredHeaders = (data || []).filter(h => {
         const sid = h.source_id || h.shipment_id;
         const st = shipmentMap.get(sid);
 
-        return st !== 'cancelled' && st !== 'canceled';
+        return !cancelledStatuses.includes(st);
       });
     }
 
@@ -5414,7 +5416,7 @@ const customerCode =
 let shipmentQuery = supabase
   .from('shipments')
   .select('*')
-  .not('status', 'in', '("cancelled","canceled")')
+  .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
   .order('created_at', { ascending: false });
 
 if (billingMonth) {
