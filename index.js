@@ -908,6 +908,7 @@ app.get('/api/invoice/list', async (req, res) => {
     let q = supabase
       .from('invoice_headers')
       .select('*')
+      .not('status', 'in', '("cancelled","canceled")')
       .order('created_at', { ascending: false });
 
     if (billingMonth) q = q.eq('billing_month', billingMonth);
@@ -5383,6 +5384,7 @@ const customerCode =
 let shipmentQuery = supabase
   .from('shipments')
   .select('*')
+  .not('status', 'in', '("cancelled","canceled")')
   .order('created_at', { ascending: false });
 
 if (billingMonth) {
@@ -5591,7 +5593,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
       `)
       .eq('customer_code', customerCode)
       .eq('billing_month', billingMonth)
-      .neq('status', 'cancelled')
+      .in('status', ['confirmed', 'issued'])
       .order('invoice_no', { ascending: true });
 
     if (error) throw error;
