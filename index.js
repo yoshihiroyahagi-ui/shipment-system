@@ -5030,6 +5030,32 @@ app.post('/api/admin/customs/request', async (req, res) => {
       line0: requestData.line0 || {}
     };
 
+    async function resolveBrokerCode(inputCode) {
+  const raw = String(inputCode || '').trim();
+  if (!raw) return '';
+
+  // すでに正式コードならそのまま
+  if (raw.endsWith('_BR')) return raw;
+
+  // SB001 → SB001_BR をマスターから探す
+  const { data, error } = await supabase
+    .from('partners')
+    .select('partner_code')
+    .or(`partner_code.eq.${raw}_BR,partner_id.eq.${raw},code.eq.${raw}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data?.partner_code || raw;
+}
+
+const brokerCode =
+  await resolveBrokerCode(
+    requestData.broker_code ||
+    requestData.brokerId
+  );
+
     const updatePayload = {
       broker_code: requestData.brokerId || null,
       customs_status: actionType === 'submit' ? 'DOCS_CHECK' : undefined,
