@@ -6427,6 +6427,71 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+app.get('/api/admin/master-data', async (req, res) => {
+  try {
+    const { data: partners, error: partnerError } = await supabase
+      .from('partners')
+      .select('*')
+      .eq('is_active', true)
+      .order('partner_code');
+
+    if (partnerError) throw partnerError;
+
+    const brokers = (partners || []).filter(p =>
+      p.partner_type === 'BROKER' ||
+      p.partner_type === '通関業者'
+    );
+
+    const truckers = (partners || []).filter(p =>
+      p.partner_type === 'TRUCK' ||
+      p.partner_type === 'Trucker' ||
+      p.partner_type === '配送業者'
+    );
+
+    const { data: masterCodes, error: masterError } = await supabase
+      .from('master_codes')
+      .select('*')
+      .eq('is_active', true);
+
+    if (masterError) throw masterError;
+
+    const pick = type =>
+      (masterCodes || []).filter(m => m.master_type === type);
+
+    const { data: deliveryDests, error: destError } = await supabase
+      .from('delivery_dests')
+      .select('*')
+      .eq('is_active', true);
+
+    if (destError) throw destError;
+
+    const { data: carriers, error: carrierError } = await supabase
+      .from('carriers')
+      .select('*')
+      .eq('is_active', true);
+
+    if (carrierError) throw carrierError;
+
+    res.json({
+      brokers,
+      truckers,
+      incoterms: pick('INCOTERMS'),
+      customsDox: pick('CUSTOMS_DOX'),
+      costCover: pick('COST_COVER'),
+      requestBroker: pick('REQUEST_BROKER'),
+      currencies: pick('CURRENCY'),
+      deliveryDests: deliveryDests || [],
+      carriers: carriers || []
+    });
+
+  } catch (err) {
+    console.error('GET /api/admin/master-data error:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
