@@ -21,11 +21,6 @@ export function buildCustomsHtmlFromPayload(payload = {}) {
   const itemLines = (delivery.lines || [])
     .map(l => l.commodity)
     .filter(Boolean);
-  
-  const productInfo =
-  (customsData.descriptions || [])
-    .filter(Boolean)
-    .join('\n');
 
   const costCoverMap = {
   CC01: 'AN立替のみお願い致します。',
@@ -228,9 +223,9 @@ const descriptionText =
   .join('\n');
 
   const productInfo =
-    Array.isArray(customsData.descriptions)
-      ? customsData.descriptions.join('\n')
-      : '';
+  (customsData.descriptions || [])
+    .filter(Boolean)
+    .join('\n');
 
   const declarationAmount =
     shipment.declaration_amount ||
