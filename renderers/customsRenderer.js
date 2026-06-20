@@ -222,6 +222,16 @@ const descriptionText =
   .map(code => requestMap[code] || code)
   .join('\n');
 
+  console.log(
+  '[customsData]',
+  customsData
+);
+
+console.log(
+  '[descriptions]',
+  customsData.descriptions
+);
+
   const productInfo =
   Array.isArray(customsData.descriptions)
     ? customsData.descriptions.join('\n')
