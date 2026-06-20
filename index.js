@@ -3687,15 +3687,21 @@ const data = {
   delivery_contact: delivery.contact_person || '',
 
   trucker_name: trucker.partner_name || '',
-  vehicle_type: customs.vehicle_type || '',
+  vehicle_type:
+  customs.vehicle_type ||
+  customs.vehicleSize ||
+  customs.truck_size ||
+  delivery.vehicle_type ||
+  delivery.truck_size ||
+  '',
 
   invoice_no: customs.invoice_no || '',
   item_name: descriptionText,
 
   descriptions:
-  Array.isArray(requestData.descriptions) &&
-  requestData.descriptions.some(Boolean)
-    ? requestData.descriptions.filter(Boolean)
+  Array.isArray(customs.descriptions) &&
+  customs.descriptions.some(Boolean)
+    ? customs.descriptions.filter(Boolean)
     : (descriptionText ? [descriptionText] : []),
   documents: Array.isArray(labels.documents_labels) ? labels.documents_labels : [],
   cost_cover: Array.isArray(labels.cost_cover_labels) ? labels.cost_cover_labels : [],
