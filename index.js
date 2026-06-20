@@ -5826,7 +5826,6 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
 
     let headerQuery = supabase
       .from('invoice_headers')
-      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
       .select(`
         invoice_id,
         billing_month,
@@ -5837,6 +5836,7 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
         payable_net_total,
         gross_profit_net
       `)
+      .not('status', 'eq', 'cancelled')
       .order('billing_month', { ascending: true });
 
     if (billingMonth) {
@@ -5922,7 +5922,6 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
 
     let headerQuery = supabase
       .from('invoice_headers')
-      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
       .select(`
         invoice_id,
         billing_month,
@@ -5933,6 +5932,7 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
         payable_net_total,
         gross_profit_net
       `)
+      .not('status', 'eq', 'cancelled')
 
     if (billingMonth) {
       headerQuery = headerQuery.eq('billing_month', billingMonth);
@@ -6020,7 +6020,7 @@ app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
           billing_tax_type,
           show_on_invoice
         )
-      `);
+      `)
 
     if (error) throw error;
 
