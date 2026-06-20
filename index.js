@@ -902,7 +902,7 @@ const supabase = createClient(
 app.get('/api/invoice/list', async (req, res) => {
   try {
     const billingMonth = req.query.billing_month || null;
-    const customerId = req.query.customer_id || null;
+    const customerCode = req.query.customer_code || null;
     const status = req.query.status || null;
 
     let q = supabase
@@ -912,11 +912,10 @@ app.get('/api/invoice/list', async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (billingMonth) q = q.eq('billing_month', billingMonth);
-    if (customerId) q = q.eq('customer_id', customerId);
+    if (customerCode) q = q.eq('customer_code', customerCode);
     if (status) q = q.eq('status', status);
 
     const { data, error } = await q;
-
     if (error) throw error;
 
     const shipmentIds = (data || [])
@@ -939,9 +938,11 @@ app.get('/api/invoice/list', async (req, res) => {
 
       const cancelledStatuses = ['cancelled', 'canceled', 'cancel', 'キャンセル'];
 
-      const filteredHeaders = (data || []).filter(h => {
+      filteredHeaders = (data || []).filter(h => {
         const sid = h.source_id || h.shipment_id;
         const st = shipmentMap.get(sid);
+
+        if (!sid) return true;
 
         return !cancelledStatuses.includes(st);
       });
