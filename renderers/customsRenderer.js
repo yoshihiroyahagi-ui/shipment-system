@@ -223,7 +223,11 @@ const descriptionText =
   .join('\n');
 
   const productInfo =
-  (customsData.descriptions || [])
+  (
+    data.descriptions ||
+    customsData.descriptions ||
+    []
+  )
     .filter(Boolean)
     .join('\n');
 
