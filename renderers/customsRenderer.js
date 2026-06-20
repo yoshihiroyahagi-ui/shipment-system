@@ -21,6 +21,11 @@ export function buildCustomsHtmlFromPayload(payload = {}) {
   const itemLines = (delivery.lines || [])
     .map(l => l.commodity)
     .filter(Boolean);
+  
+  const productInfo =
+  (customsData.descriptions || [])
+    .filter(Boolean)
+    .join('\n');
 
   const costCoverMap = {
   CC01: 'AN立替のみお願い致します。',
