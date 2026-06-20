@@ -5965,20 +5965,11 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
         };
       }
 
-      map[month].sales_net +=
-        Number(h.sales_net_total || 0);
-
-      map[month].tax_amount +=
-        Number(h.sales_tax_total || 0);
-
-      map[month].sales_total +=
-        Number(h.sales_gross_total || 0);
-
-      map[month].cost_net +=
-        Number(h.payable_net_total || 0);
-
-      map[month].gross_profit +=
-        Number(h.gross_profit_net || 0);
+      map[key].sales_net += Number(h.sales_net_total || 0);
+      map[key].tax_amount += Number(h.sales_tax_total || 0);
+      map[key].sales_total += Number(h.sales_gross_total || 0);
+      map[key].cost_net += Number(h.payable_net_total || 0);
+      map[key].gross_profit += Number(h.gross_profit_net || 0);
     });
 
     const rows = Object.values(map).map(function(row) {
