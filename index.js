@@ -5826,20 +5826,16 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
 
     let headerQuery = supabase
       .from('invoice_headers')
+      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
       .select(`
         invoice_id,
         billing_month,
-        invoice_lines (
-          invoice_line_id,
-          billing_amount_net,
-          billing_tax_amount,
-          billing_amount_gross,
-          billing_tax_type,
-          show_on_invoice,
-          payable_lines (
-            payable_amount_net
-          )
-        )
+        status,
+        sales_net_total,
+        sales_tax_total,
+        sales_gross_total,
+        payable_net_total,
+        gross_profit_net
       `)
       .order('billing_month', { ascending: true });
 
@@ -5877,40 +5873,23 @@ app.get('/api/invoice/analysis/monthly', async (req, res) => {
         };
       }
 
-      (h.invoice_lines || []).forEach(line => {
-        if (line.show_on_invoice === false) return;
+      map[month].sales_net +=
+        Number(h.sales_net_total || 0);
 
-        const salesNet =
-          Number(line.billing_amount_net || 0);
+      map[month].tax_amount +=
+        Number(h.sales_tax_total || 0);
 
-        const tax =
-          Number(line.billing_tax_amount || 0);
+      map[month].sales_total +=
+        Number(h.sales_gross_total || 0);
 
-        const gross =
-          Number(line.billing_amount_gross || 0);
+      map[month].cost_net +=
+        Number(h.payable_net_total || 0);
 
-        map[month].sales_net += salesNet;
-        map[month].tax_amount += tax;
-        map[month].sales_total += gross;
-
-        if (line.billing_tax_type === 'non_taxable') {
-          map[month].non_taxable += salesNet;
-        }
-
-        if (line.billing_tax_type === 'advance') {
-          map[month].advance_payment += salesNet;
-        }
-
-        (line.payable_lines || []).forEach(p => {
-          map[month].cost_net +=
-            Number(p.payable_amount_net || 0);
-        });
-      });
+      map[month].gross_profit +=
+        Number(h.gross_profit_net || 0);
     });
 
     Object.values(map).forEach(row => {
-      row.gross_profit =
-        row.sales_net - row.cost_net;
 
       row.gross_margin =
         row.sales_net > 0
@@ -5943,23 +5922,17 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
 
     let headerQuery = supabase
       .from('invoice_headers')
+      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
       .select(`
         invoice_id,
         billing_month,
-        customer_code,
-        customer_name,
-        invoice_lines (
-          invoice_line_id,
-          billing_amount_net,
-          billing_tax_amount,
-          billing_amount_gross,
-          billing_tax_type,
-          show_on_invoice,
-          payable_lines (
-            payable_amount_net
-          )
-        )
-      `);
+        status,
+        sales_net_total,
+        sales_tax_total,
+        sales_gross_total,
+        payable_net_total,
+        gross_profit_net
+      `)
 
     if (billingMonth) {
       headerQuery = headerQuery.eq('billing_month', billingMonth);
@@ -5992,40 +5965,23 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
         };
       }
 
-      (h.invoice_lines || []).forEach(function(line) {
-        if (line.show_on_invoice === false) return;
+      map[month].sales_net +=
+        Number(h.sales_net_total || 0);
 
-        const net = Number(line.billing_amount_net || 0);
-        const tax = Number(line.billing_tax_amount || 0);
-        const gross = Number(line.billing_amount_gross || 0);
-        const taxType = line.billing_tax_type || 'taxable';
+      map[month].tax_amount +=
+        Number(h.sales_tax_total || 0);
 
-        map[key].sales_net += net;
-        map[key].sales_total += gross;
+      map[month].sales_total +=
+        Number(h.sales_gross_total || 0);
 
-        if (taxType === 'taxable') {
-          map[key].taxable_amount += net;
-          map[key].tax_amount += tax;
-        } else if (taxType === 'non_taxable') {
-          map[key].non_taxable += net;
-        } else if (taxType === 'exempt') {
-          map[key].exempt += net;
-        } else if (taxType === 'zero') {
-          map[key].zero += net;
-        } else if (taxType === 'advance') {
-          map[key].advance_payment += net;
-        } else {
-          map[key].out_of_scope += net;
-        }
+      map[month].cost_net +=
+        Number(h.payable_net_total || 0);
 
-        (line.payable_lines || []).forEach(function(p) {
-          map[key].cost_net += Number(p.payable_amount_net || 0);
-        });
-      });
+      map[month].gross_profit +=
+        Number(h.gross_profit_net || 0);
     });
 
     const rows = Object.values(map).map(function(row) {
-      row.gross_profit = row.sales_net - row.cost_net;
       row.gross_margin =
         row.sales_net > 0
           ? Number(((row.gross_profit / row.sales_net) * 100).toFixed(1))
