@@ -223,13 +223,9 @@ const descriptionText =
   .join('\n');
 
   const productInfo =
-  (
-    data.descriptions ||
-    customsData.descriptions ||
-    []
-  )
-    .filter(Boolean)
-    .join('\n');
+  Array.isArray(customsData.descriptions)
+    ? customsData.descriptions.join('\n')
+    : '';
 
   const declarationAmount =
     shipment.declaration_amount ||
