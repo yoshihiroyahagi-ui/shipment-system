@@ -5926,6 +5926,8 @@ app.get('/api/invoice/analysis/customer-ranking', async (req, res) => {
         invoice_id,
         billing_month,
         status,
+        customer_code,
+        customer_name,
         sales_net_total,
         sales_tax_total,
         sales_gross_total,
