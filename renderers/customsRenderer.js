@@ -22,11 +22,6 @@ export function buildCustomsHtmlFromPayload(payload = {}) {
     .map(l => l.commodity)
     .filter(Boolean);
 
-  const customsData =
-  typeof shipment.customs_data === 'string'
-    ? JSON.parse(shipment.customs_data || '{}')
-    : (shipment.customs_data || {});
-
   const costCoverMap = {
   CC01: 'AN立替のみお願い致します。',
   CC02: '関税・消費税のみ立替をお願い致します。',
@@ -197,8 +192,11 @@ const cbmText = totalCbm ? `${totalCbm} CBM` : '';
 let customsData = {};
 
 try {
-  customsData =
-    JSON.parse(shipment.customs_data || '{}');
+  if (typeof shipment.customs_data === 'string') {
+    customsData = JSON.parse(shipment.customs_data || '{}');
+  } else {
+    customsData = shipment.customs_data || {};
+  }
 } catch (e) {
   customsData = {};
 }
