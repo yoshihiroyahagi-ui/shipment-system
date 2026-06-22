@@ -188,8 +188,6 @@ const cbmText = totalCbm ? `${totalCbm} CBM` : '';
     ? itemLines[0]
     : '';
 
-  
-
 let customsData = {};
 
 try {
@@ -202,49 +200,33 @@ try {
   customsData = {};
 }
 
-const descriptionText =
-  firstCommodity ||
-  (
-    customs.descriptions &&
-    customs.descriptions.length
-      ? customs.descriptions[0]
-      : ''
-  );
-
-  const docsText = (customs.documents || [])
-  .map(code => documentMap[code] || code)
-  .join('\n');
-
-  const costCoverText =
-    (labels.cost_cover_labels || []).join('\n') ||
-    costCoverMap[customs.costCover] ||
-    customs.costCover ||
-    '';
-
-  const workScopesText = (customs.workScopes || []).join('\n');
-  const requestsText = (customs.requests || [])
-  .map(code => requestMap[code] || code)
-  .join('\n');
-
-  console.log(
-  '[customsData]',
-  customsData
-);
-
-console.log(
-  '[descriptions]',
-  customsData.descriptions
-);
-
 const itemName =
   customs.item_name ||
   firstCommodity ||
   '';
 
-  const productInfo =
-  Array.isArray(customsData.descriptions)
-    ? customsData.descriptions.join('\n')
-    : '';
+const productInfo =
+  customs.productInfo ||
+  customs.product_info ||
+  customsData.productInfo ||
+  customsData.product_info ||
+  '';
+
+const docsText = (customs.documents || [])
+  .map(code => documentMap[code] || code)
+  .join('\n');
+
+const costCoverText =
+  (labels.cost_cover_labels || []).join('\n') ||
+  costCoverMap[customs.costCover] ||
+  customs.costCover ||
+  '';
+
+const workScopesText = (customs.workScopes || []).join('\n');
+
+const requestsText = (customs.requests || [])
+  .map(code => requestMap[code] || code)
+  .join('\n');
 
   const declarationAmount =
     shipment.declaration_amount ||
