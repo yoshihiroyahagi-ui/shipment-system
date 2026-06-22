@@ -188,6 +188,15 @@ const cbmText = totalCbm ? `${totalCbm} CBM` : '';
     ? itemLines[0]
     : '';
 
+  const itemName =
+  customs.item_name ||
+  firstCommodity ||
+  '';
+
+  const productInfo =
+  Array.isArray(customsData.descriptions)
+    ? customsData.descriptions.join('\n')
+    : '';
 
 let customsData = {};
 
@@ -234,11 +243,6 @@ console.log(
   '[descriptions]',
   customsData.descriptions
 );
-
-  const productInfo =
-  Array.isArray(customsData.descriptions)
-    ? customsData.descriptions.join('\n')
-    : '';
 
   const declarationAmount =
     shipment.declaration_amount ||
