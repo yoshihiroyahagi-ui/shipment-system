@@ -3588,14 +3588,17 @@ const firstCommodity =
     ? itemLines[0]
     : '';
 
-const descriptionText =
-  firstCommodity ||
+const itemName =
   customs.item_name ||
-  (
-    Array.isArray(customs.descriptions) && customs.descriptions.length
-      ? customs.descriptions[0]
-      : ''
-  );
+  firstCommodity ||
+  '';
+
+const productInfo =
+  Array.isArray(customs.descriptions)
+    ? customs.descriptions
+        .filter(Boolean)
+        .join('\n')
+    : '';
 
 const shipperBlock = [
   snapshot.shipper_name || supplier.supplier_name || '',
@@ -3696,13 +3699,15 @@ const data = {
   '',
 
   invoice_no: customs.invoice_no || '',
-  item_name: descriptionText,
+  item_name: itemName,
 
   descriptions:
-  Array.isArray(customs.descriptions) &&
-  customs.descriptions.some(Boolean)
-    ? customs.descriptions.filter(Boolean)
-    : (descriptionText ? [descriptionText] : []),
+    Array.isArray(customs.descriptions)
+      ? customs.descriptions.filter(Boolean)
+      : [],
+
+  product_info: productInfo,
+  
   documents: Array.isArray(labels.documents_labels) ? labels.documents_labels : [],
   cost_cover: Array.isArray(labels.cost_cover_labels) ? labels.cost_cover_labels : [],
   work_scopes: Array.isArray(customs.work_scopes) ? customs.work_scopes : [],
