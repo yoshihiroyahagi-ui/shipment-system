@@ -3594,11 +3594,7 @@ const itemName =
   '';
 
 const productInfo =
-  Array.isArray(customs.descriptions)
-    ? customs.descriptions
-        .filter(Boolean)
-        .join('\n')
-    : '';
+  customs.productInfo || '';
 
 const shipperBlock = [
   snapshot.shipper_name || supplier.supplier_name || '',
@@ -5039,6 +5035,8 @@ app.post('/api/admin/customs/request', async (req, res) => {
       inboundNo: requestData.inboundNo || '',
       currency: requestData.currency || '',
       incoterms: requestData.incoterms || '',
+      productInfo:
+      requestData.productInfo || '',
       brokerCode:
       requestData.broker_code ||
       requestData.brokerId ||
