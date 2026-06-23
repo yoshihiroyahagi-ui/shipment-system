@@ -212,6 +212,14 @@ const productInfo =
   customsData.product_info ||
   '';
 
+const vehicleType =
+  shipment.vehicle_type ||
+  customs.vehicle_type ||
+  customs.vehicleSize ||
+  delivery.vehicle_type ||
+  delivery.truck_size ||
+  '';
+
 const docsText = (customs.documents || [])
   .map(code => documentMap[code] || code)
   .join('\n');
@@ -596,8 +604,8 @@ ${esc([
 ${esc([
   (trucker && (trucker.partner_name || trucker.trucker_name)) || shipment.trucker_code
     ? `引取業者：${(trucker && (trucker.partner_name || trucker.trucker_name)) || shipment.trucker_code}` : '',
-  data.vehicle_type
-    ? `希望車種：${data.vehicle_type}` : ''
+  vehicleType
+    ? `希望車種：${vehicleType}` : ''
 ].filter(Boolean).join('\n'))}
 </div>
 </div>
