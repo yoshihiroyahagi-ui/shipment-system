@@ -616,7 +616,13 @@ ${esc([
 
 <div class="section">
   <div class="section-title">商品情報</div>
-  <div class="list-lines">${esc(productInfo)}</div>
+  <div class="list-lines">${
+    esc(
+      Array.isArray(customs.descriptions)
+        ? customs.descriptions.filter(Boolean).join('\n')
+        : ''
+    )
+  }</div>
 </div>
 
   <div class="section">
