@@ -609,14 +609,14 @@ ${esc([
       <td class="label">INVOICE NO.</td>
       <td>${esc(shipment.invoice_no || customs.invoice_no || '')}</td>
       <td class="label">ITEM(品名)</td>
-      <td>${esc(itemName)}</td>
+      <td>${esc(descriptionText)}</td>
     </tr>
   </table>
 </div>
 
 <div class="section">
   <div class="section-title">商品情報</div>
-  <div class="list-lines">${esc(data.product_info || '')}</div>
+  <div class="list-lines">${esc(productInfo)}</div>
 </div>
 
   <div class="section">

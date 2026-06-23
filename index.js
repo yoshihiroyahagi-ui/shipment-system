@@ -3594,7 +3594,11 @@ const itemName =
   '';
 
 const productInfo =
-  customs.productInfo || '';
+  Array.isArray(customs.descriptions)
+    ? customs.descriptions
+        .filter(Boolean)
+        .join('\n')
+    : '';
 
 const shipperBlock = [
   snapshot.shipper_name || supplier.supplier_name || '',
@@ -3697,7 +3701,6 @@ const data = {
               
   invoice_no: customs.invoice_no || '',
   item_name: descriptionText,
-  product_info: productInfo,
 
   descriptions:
   Array.isArray(customs.descriptions) &&
