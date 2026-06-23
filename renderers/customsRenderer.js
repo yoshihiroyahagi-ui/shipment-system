@@ -596,10 +596,10 @@ ${esc([
 ${esc([
   (trucker && (trucker.partner_name || trucker.trucker_name)) || shipment.trucker_code
     ? `引取業者：${(trucker && (trucker.partner_name || trucker.trucker_name)) || shipment.trucker_code}` : '',
-  shipment.vehicle_type
-    ? `希望車種：${shipment.vehicle_type}` : ''
+  data.vehicle_type
+    ? `希望車種：${data.vehicle_type}` : ''
 ].filter(Boolean).join('\n'))}
-  </div>
+</div>
 </div>
 
   <div class="section">
