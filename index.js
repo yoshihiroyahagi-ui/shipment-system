@@ -4045,15 +4045,52 @@ app.post('/api/admin/save-customs-data', async (req, res) => {
       customs_declared_date: requestData.customsDeclaredDate || requestData.customs_declared_date || null,
 
       customs_data: JSON.stringify({
-        descriptions: Array.isArray(requestData.descriptions) ? requestData.descriptions : [],
-        costCover: requestData.costCover || '',
-        documents: Array.isArray(requestData.documents) ? requestData.documents : [],
-        requests: Array.isArray(requestData.requests) ? requestData.requests : [],
-        specialInst: requestData.specialInst || '',
-        workScopes: Array.isArray(requestData.workScopes) ? requestData.workScopes : [],
-        declaredDate: requestData.customsDeclaredDate || requestData.customs_declared_date || '',
-        pickupDate
-      })
+  descriptions: Array.isArray(requestData.descriptions)
+    ? requestData.descriptions
+    : [],
+
+  costCover: requestData.costCover || '',
+  documents: Array.isArray(requestData.documents)
+    ? requestData.documents
+    : [],
+  requests: Array.isArray(requestData.requests)
+    ? requestData.requests
+    : [],
+  specialInst: requestData.specialInst || '',
+  workScopes: Array.isArray(requestData.workScopes)
+    ? requestData.workScopes
+    : [],
+
+  incoterms: requestData.incoterms || '',
+  currency: requestData.currency || '',
+  declarationAmount:
+    requestData.declarationAmount ||
+    requestData.declaration_amount ||
+    '',
+  invoiceNo:
+    requestData.invoiceNo ||
+    requestData.invoice_no ||
+    '',
+  itemName:
+    requestData.itemName ||
+    requestData.item_name ||
+    '',
+  inboundNo:
+    requestData.inboundNo ||
+    requestData.inbound_no ||
+    '',
+
+  declaredDate:
+    requestData.customsDeclaredDate ||
+    requestData.customs_declared_date ||
+    '',
+  customsDeclaredDate:
+    requestData.customsDeclaredDate ||
+    requestData.customs_declared_date ||
+    '',
+
+  pickupDate
+})
     };
 
     const { error } = await supabase
