@@ -616,7 +616,7 @@ ${esc([
 
 <div class="section">
   <div class="section-title">商品情報</div>
-  <div class="list-lines">${esc(productInfo)}</div>
+  <div class="list-lines">${esc(data.product_info || '')}</div>
 </div>
 
   <div class="section">

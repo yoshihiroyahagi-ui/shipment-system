@@ -3687,23 +3687,23 @@ const data = {
 
   trucker_name: trucker.partner_name || '',
   vehicle_type:
+  shipment.vehicle_type ||
   customs.vehicle_type ||
   customs.vehicleSize ||
   customs.truck_size ||
   delivery.vehicle_type ||
   delivery.truck_size ||
   '',
-
+              
   invoice_no: customs.invoice_no || '',
-  item_name: itemName,
+  item_name: descriptionText,
+  product_info: productInfo,
 
   descriptions:
-    Array.isArray(customs.descriptions)
-      ? customs.descriptions.filter(Boolean)
-      : [],
-
-  product_info: productInfo,
-  
+  Array.isArray(customs.descriptions) &&
+  customs.descriptions.some(Boolean)
+    ? customs.descriptions.filter(Boolean)
+    : (descriptionText ? [descriptionText] : []),
   documents: Array.isArray(labels.documents_labels) ? labels.documents_labels : [],
   cost_cover: Array.isArray(labels.cost_cover_labels) ? labels.cost_cover_labels : [],
   work_scopes: Array.isArray(customs.work_scopes) ? customs.work_scopes : [],
@@ -5035,8 +5035,6 @@ app.post('/api/admin/customs/request', async (req, res) => {
       inboundNo: requestData.inboundNo || '',
       currency: requestData.currency || '',
       incoterms: requestData.incoterms || '',
-      productInfo:
-      requestData.productInfo || '',
       brokerCode:
       requestData.broker_code ||
       requestData.brokerId ||
