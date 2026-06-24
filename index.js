@@ -2737,6 +2737,9 @@ if (deleteLineIds.length > 0) {
       const destId = clean(line.delivery_dest_id);
 
       const linePayload = {
+        line_id:
+          line.line_id ||
+          'LIN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
         shipment_id: savedShipmentId,
         customer_code: shipment.customer_code || line.customer_code || '',
         pt: line.pt || '',
@@ -2751,7 +2754,13 @@ if (deleteLineIds.length > 0) {
         delivery_plan_time: line.delivery_plan_time || null,
         remarks: line.remarks || '',
         commodity_note: line.commodity_note || '',
-        customer_ref_no: line.customer_ref_no || ''
+        customer_ref_no: line.customer_ref_no || '',
+
+        vehicle_type: line.vehicle_type || '',
+        carrier_name: line.carrier_name || '',
+        vehicle_no: line.vehicle_no || '',
+        driver_name: line.driver_name || '',
+        driver_phone: line.driver_phone || ''
       };
 
       console.log('[save-shipment] linePayload:', linePayload);
