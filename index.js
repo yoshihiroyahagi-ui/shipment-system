@@ -2729,17 +2729,24 @@ if (deleteLineIds.length > 0) {
     // lines 保存
     for (const line of lines) {
       const lineId = String(line.line_id || '').trim();
-      const clean = (v) => {
-       if (v === "" || v === undefined || v === null) return null;
-       return v;
-      };
+
+const isTempLineId =
+  lineId.startsWith('LINE-');
+
+const saveLineId =
+  lineId && !isTempLineId
+    ? lineId
+    : `LIN-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const clean = (v) => {
+  if (v === "" || v === undefined || v === null) return null;
+  return v;
+};
 
       const destId = clean(line.delivery_dest_id);
 
       const linePayload = {
-        line_id:
-          line.line_id ||
-          'LIN-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        line_id: saveLineId,
         shipment_id: savedShipmentId,
         customer_code: shipment.customer_code || line.customer_code || '',
         pt: line.pt || '',
@@ -2772,7 +2779,7 @@ if (deleteLineIds.length > 0) {
          ? null
          : destIdRaw;
 
-      if (lineId) {
+      if (lineId && !isTempLineId) {
         const { error: lineUpdateError } = await supabase
           .from('shipment_lines')
           .update(linePayload)
