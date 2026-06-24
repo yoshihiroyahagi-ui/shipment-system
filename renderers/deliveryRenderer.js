@@ -148,6 +148,59 @@ const groupedLines = Array.from(groupedMap.values());
   }
   return String(v);
 };
+const deliveryBlocksHtml = groupedLines.map((line, idx) => {
+  const deliveryDateTime = [
+    line.delivery_fixed || line.delivery_plan_date || line.delivery_request_date || '',
+    line.delivery_fixed_time || line.delivery_plan_time || line.delivery_request_time || ''
+  ].filter(Boolean).join(' ');
+
+  const destName =
+    line.delivery_dest_name ||
+    line.dest_name ||
+    line.delivery_dest_short ||
+    '';
+
+  const commodityText =
+    Array.isArray(line.commodities)
+      ? line.commodities.join('\n')
+      : [line.commodity, line.commodity_note].filter(Boolean).join('\n');
+
+  return `
+    <div class="delivery-block">
+      <div class="sub-title">配送先 ${idx + 1}</div>
+      <table>
+        <tr>
+          <th>納品日時</th>
+          <td>${esc(deliveryDateTime)}</td>
+          <th>納品先</th>
+          <td>${esc(destName)}</td>
+        </tr>
+        <tr>
+          <th>車種</th>
+          <td>${esc(line.vehicle_type || '')}</td>
+          <th>実運送会社</th>
+          <td>${esc(line.carrier_name || '')}</td>
+        </tr>
+        <tr>
+          <th>車番</th>
+          <td>${esc(line.vehicle_no || '')}</td>
+          <th>運転手</th>
+          <td>${esc(line.driver_name || '')}</td>
+        </tr>
+        <tr>
+          <th>連絡先</th>
+          <td>${esc(line.driver_phone || '')}</td>
+          <th>備考</th>
+          <td>${esc(line.remarks || '')}</td>
+        </tr>
+        <tr>
+          <th>商品</th>
+          <td colspan="3">${esc(commodityText)}</td>
+        </tr>
+      </table>
+    </div>
+  `;
+}).join('');
 
   return `<!doctype html>
 <html lang="ja">
