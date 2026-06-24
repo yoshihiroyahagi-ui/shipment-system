@@ -426,7 +426,7 @@ const deliveryBlocksHtml = groupedLines.map((line, idx) => {
         </tr>
       </thead>
       <tbody>
-        ${groupedLines.map(line => `
+        ${normalizedLines.map(line => `
   <tr>
     <td>${esc(fmtDate(line.delivery_fixed || line.delivery_request_date || line.delivery_plan_date || ''))}</td>
     <td>${esc(line.delivery_fixed_time || line.delivery_request_time || line.delivery_plan_time || '')}</td>
@@ -435,7 +435,8 @@ const deliveryBlocksHtml = groupedLines.map((line, idx) => {
       line.delivery_address1 || line.address_official || '',
       line.delivery_address2 || '',
       line.delivery_tel ? 'TEL: ' + line.delivery_tel : '',
-      line.delivery_contact ? '担当: ' + line.delivery_contact : ''
+      line.delivery_contact ? '担当: ' + line.delivery_contact : '',
+      line.vehicle_type ? '車種: ' + line.vehicle_type : ''
     ].filter(Boolean).join('\n'))}</td>
     <td class="small">${esc(allCommodities.join('\n'))}</td>
   </tr>
