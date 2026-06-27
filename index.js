@@ -6449,6 +6449,99 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+app.get('/api/invoice/analysis/vendor-bank-summary', async (req, res) => {
+  try {
+    const paymentMonth = String(req.query.payment_month || '').trim();
+
+    const { data: invoices, error } = await supabase
+      .from('invoice_headers')
+      .select(`
+        invoice_id,
+        billing_month,
+        job_no,
+        payable_lines (
+          vendor_name,
+          payment_due_date,
+          payment_date,
+          status,
+          payable_amount_gross
+        )
+      `)
+      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")');
+
+    if (error) throw error;
+
+    const map = {};
+
+    (invoices || []).forEach(h => {
+      (h.payable_lines || []).forEach(p => {
+        const status = String(p.status || '').trim();
+        if (status === 'paid') return;
+
+        const dueDate = String(p.payment_due_date || '').trim();
+        if (paymentMonth && !dueDate.startsWith(paymentMonth)) return;
+
+        const vendor = p.vendor_name || '未設定';
+
+        if (!map[vendor]) {
+          map[vendor] = {
+            vendor_name: vendor,
+            amount: 0
+          };
+        }
+
+        map[vendor].amount += Number(p.payable_amount_gross || 0);
+      });
+    });
+
+    const vendors = Object.keys(map);
+
+    const { data: partners, error: partnerError } = await supabase
+      .from('partners')
+      .select(`
+        partner_name,
+        bank_code,
+        bank_branch_code,
+        bank_account_type,
+        bank_account_no,
+        bank_account_name_kana
+      `)
+      .in('partner_name', vendors);
+
+    if (partnerError) throw partnerError;
+
+    const partnerMap = {};
+    (partners || []).forEach(p => {
+      partnerMap[p.partner_name] = p;
+    });
+
+    const rows = vendors.sort().map(vendor => {
+      const p = partnerMap[vendor] || {};
+
+      return {
+        vendor_name: vendor,
+        bank_code: p.bank_code || '',
+        bank_branch_code: p.bank_branch_code || '',
+        bank_account_type: p.bank_account_type || '',
+        bank_account_no: p.bank_account_no || '',
+        bank_account_name_kana: p.bank_account_name_kana || '',
+        amount: map[vendor].amount
+      };
+    });
+
+    return res.json({
+      success: true,
+      rows
+    });
+
+  } catch (err) {
+    console.error('/api/invoice/analysis/vendor-bank-summary error:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 app.get('/api/admin/master-data', async (req, res) => {
   try {
 
