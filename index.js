@@ -6233,7 +6233,7 @@ app.get('/api/invoice/analysis/receivable-detail', async (req, res) => {
           invoice_date: h.invoice_date || '',
           payment_due_date: h.payment_due_date || '',
           received_date: h.received_date || '',
-          receivable_status: h.receivable_status || 'unpaid',
+          receivable_status: h.receivable_status || 'planned',
           project_name: h.free_title || h.cargo_summary || '',
           item_name: line.item_name || '',
           billing_tax_type: line.billing_tax_type || '',
