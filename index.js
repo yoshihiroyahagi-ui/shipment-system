@@ -6128,10 +6128,10 @@ app.get('/api/invoice/analysis/receivable-summary', async (req, res) => {
 
       map[key].invoice_count += 1;
 
-      if (h.received_date || h.receivable_status === 'paid') {
-        map[key].received_count += 1;
+      if (h.receivable_status === 'paid') {
+        map[key].paid_count += 1;
       } else {
-        map[key].unpaid_count += 1;
+        map[key].planned_count += 1;
       }
 
       (h.invoice_lines || []).forEach(function(line) {
