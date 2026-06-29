@@ -4335,9 +4335,16 @@ app.get('/api/portal/calendar', async (req, res) => {
     }
     
     const start = `${month}-01`;
-    const endDate = new Date(`${month}-01T00:00:00`);
-    endDate.setMonth(endDate.getMonth() + 1);
-    const end = endDate.toISOString().slice(0, 10);
+
+    const [y, m] = month.split('-').map(Number);
+    const endY = m === 12 ? y + 1 : y;
+    const endM = m === 12 ? 1 : m + 1;
+
+    const end =
+      String(endY) +
+      '-' +
+      String(endM).padStart(2, '0') +
+      '-01';
     const dateField =
       basis === 'departure' ? 'etd' :
       basis === 'delivery' ? null :
