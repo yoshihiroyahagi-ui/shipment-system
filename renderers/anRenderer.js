@@ -12,6 +12,10 @@ export function buildANHtmlFromPayload(payload = {}) {
   };
 
   const shipment = payload.shipment || {};
+  console.log('[AN HTML payload keys]', Object.keys(payload));
+console.log('[AN HTML payload.snapshot]', payload.snapshot);
+console.log('[AN HTML payload.an]', payload.an);
+console.log('[AN HTML payload.resolved]', payload.resolved);
   const party = payload.party || {};
   const customer = party.customer || {};
   const supplier = party.supplier || {};
