@@ -31,16 +31,14 @@ export function buildANHtmlFromPayload(payload = {}) {
   '';
 
 const placeOfReceipt =
-  snapshot.place_of_receipt === null ||
-  snapshot.place_of_receipt === undefined
-    ? shipment.pol
-    : snapshot.place_of_receipt;
+  snapshot.place_of_receipt && String(snapshot.place_of_receipt).trim()
+    ? snapshot.place_of_receipt
+    : shipment.pol;
 
 const placeOfDelivery =
-  snapshot.place_of_delivery === null ||
-  snapshot.place_of_delivery === undefined
-    ? shipment.pod
-    : snapshot.place_of_delivery;
+  snapshot.place_of_delivery && String(snapshot.place_of_delivery).trim()
+    ? snapshot.place_of_delivery
+    : shipment.pod;
 
   const charges = Array.isArray(an.charges)
     ? an.charges
