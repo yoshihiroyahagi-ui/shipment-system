@@ -18,7 +18,10 @@ export function buildANHtmlFromPayload(payload = {}) {
   const logistics = payload.logistics || {};
   const pickup = logistics.pickup_place || {};
   const an = payload.an || {};
-  const snapshot = an.snapshot || {};
+  const snapshot =
+  an.snapshot && typeof an.snapshot === 'object'
+    ? an.snapshot
+    : an || {};
   const containers = Array.isArray(an.containers) ? an.containers : [];
   const totals = an.totals || {};
   const labels = payload.labels || {};
