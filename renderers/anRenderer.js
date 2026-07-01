@@ -18,10 +18,13 @@ export function buildANHtmlFromPayload(payload = {}) {
   const logistics = payload.logistics || {};
   const pickup = logistics.pickup_place || {};
   const an = payload.an || {};
+
   const snapshot =
-  an.snapshot && typeof an.snapshot === 'object'
-    ? an.snapshot
-    : an || {};
+    payload.snapshot && typeof payload.snapshot === 'object'
+      ? payload.snapshot
+      : an.snapshot && typeof an.snapshot === 'object'
+        ? an.snapshot
+        : an || {};
   const containers = Array.isArray(an.containers) ? an.containers : [];
   const totals = an.totals || {};
   const labels = payload.labels || {};
@@ -31,10 +34,14 @@ export function buildANHtmlFromPayload(payload = {}) {
   '';
 
 const placeOfReceipt =
-  snapshot.place_of_receipt ?? '';
+  payload.resolved?.place_of_receipt ??
+  snapshot.place_of_receipt ??
+  '';
 
 const placeOfDelivery =
-  snapshot.place_of_delivery ?? '';
+  payload.resolved?.place_of_delivery ??
+  snapshot.place_of_delivery ??
+  '';
 
   const charges = Array.isArray(an.charges)
     ? an.charges
