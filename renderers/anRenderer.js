@@ -31,14 +31,10 @@ export function buildANHtmlFromPayload(payload = {}) {
   '';
 
 const placeOfReceipt =
-  snapshot.place_of_receipt && String(snapshot.place_of_receipt).trim()
-    ? snapshot.place_of_receipt
-    : shipment.pol;
+  snapshot.place_of_receipt ?? '';
 
 const placeOfDelivery =
-  snapshot.place_of_delivery && String(snapshot.place_of_delivery).trim()
-    ? snapshot.place_of_delivery
-    : shipment.pod;
+  snapshot.place_of_delivery ?? '';
 
   const charges = Array.isArray(an.charges)
     ? an.charges
