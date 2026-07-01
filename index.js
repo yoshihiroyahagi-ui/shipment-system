@@ -4220,10 +4220,24 @@ if (docType === 'delivery') {
   payload = await resolveShipmentDocs(shipment_id);
 
   if (docType === 'an') {
-    console.log('[AN payload]', JSON.stringify(payload, null, 2));
-    html = buildANHtmlFromPayload(payload);
+  const shipmentId =
+    payload?.shipment?.shipment_id ||
+    payload?.shipment_id ||
+    payload?.an?.shipment_id;
 
-  } else if (docType === 'customs') {
+  const { data: snapshot, error: snapshotErr } = await supabase
+    .from('shipment_an_snapshot')
+    .select('*')
+    .eq('shipment_id', shipmentId)
+    .maybeSingle();
+
+  if (snapshotErr) throw snapshotErr;
+
+  payload.an = payload.an || {};
+  payload.an.snapshot = snapshot || {};
+
+  html = buildANHtmlFromPayload(payload);
+} else if (docType === 'customs') {
     console.log('[customs payload]', JSON.stringify(payload, null, 2));
     html = buildCustomsHtmlFromPayload(payload);
   }
