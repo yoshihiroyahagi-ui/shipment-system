@@ -322,6 +322,7 @@ async function buildTotalInvoiceData({
     .eq('customer_code', customerCode)
     .eq('billing_month', billingMonth)
     .neq('status', 'cancelled')
+    .neq('receivable_status', 'paid')
     .order('invoice_no', { ascending: true });
 
   if (error) throw error;
