@@ -6608,6 +6608,56 @@ app.get('/api/admin/master-data', async (req, res) => {
     });
   }
 });
+app.post('/api/invoice/receivables/mark-paid', async (req, res) => {
+  try {
+    const invoiceIds =
+      Array.isArray(req.body.invoice_ids)
+        ? req.body.invoice_ids
+        : [];
+
+    const receivedDate =
+      String(req.body.received_date || '').trim();
+
+    if (!invoiceIds.length) {
+      return res.status(400).json({
+        ok: false,
+        error: 'invoice_ids is required'
+      });
+    }
+
+    if (!receivedDate) {
+      return res.status(400).json({
+        ok: false,
+        error: 'received_date is required'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('invoice_headers')
+      .update({
+        received_date: receivedDate,
+        receivable_status: 'paid',
+        updated_at: new Date().toISOString()
+      })
+      .in('invoice_id', invoiceIds)
+      .select('invoice_id, invoice_no, received_date, receivable_status');
+
+    if (error) throw error;
+
+    return res.json({
+      ok: true,
+      count: data?.length || 0,
+      rows: data || []
+    });
+
+  } catch (err) {
+    console.error('/api/invoice/receivables/mark-paid error:', err);
+    return res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
