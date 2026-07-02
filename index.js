@@ -5755,6 +5755,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
       .eq('customer_code', customerCode)
       .eq('billing_month', billingMonth)
       .in('status', ['confirmed', 'issued'])
+      .neq('receivable_status', 'paid')
       .order('invoice_no', { ascending: true });
 
     if (error) throw error;
