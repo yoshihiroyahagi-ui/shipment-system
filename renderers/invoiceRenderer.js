@@ -95,8 +95,8 @@ const salesGross =
 ].filter(Boolean).join('　　');
 
   const displayInvoiceNo =
-    header.job_no ||
     header.invoice_no ||
+    header.job_no ||
     header.commercial_invoice_no ||
     '';
 
