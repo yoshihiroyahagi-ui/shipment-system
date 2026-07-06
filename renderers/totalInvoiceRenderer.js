@@ -75,7 +75,7 @@ const tableHeaderHtml = `
   </thead>
 `;
 
-const tablesHtml = pages.map((pageRows, pageIndex) => {
+const pageHtmls = pages.map((pageRows, pageIndex) => {
   const bodyRows = pageRows.map((r, j) => {
     const i = pageIndex * pageSize + j;
 
@@ -108,15 +108,96 @@ const tablesHtml = pages.map((pageRows, pageIndex) => {
     : '';
 
   return `
-    <table>
-      ${tableHeaderHtml}
-      <tbody>
-        ${bodyRows}
-        ${totalRow}
-      </tbody>
-    </table>
+    <div class="page">
+      <div class="top-bar">
+        <div>一括請求明細書</div>
+        <div class="page-no">${pageIndex + 1} / ${pages.length} ページ</div>
+      </div>
+
+      <div class="header">
+    <div>
+      <div style="margin-bottom:12px;">
+        <span class="label">請求日</span>
+        <span class="invoice-date-text">
+            ${formatDateJa(invoiceDate)}    
+        </span>
+      </div>
+
+      <span class="label">ご請求先</span>
+      <div class="box">
+        ${esc(data.customer_name)}　御中<br>
+        ${esc(data.customer_address || '')}
+      </div>
+    </div>
+
+   
+    <div class="amount-wrap">
+        <div class="amount-box">
+        <div class="amount-title">御請求金額</div>
+        <div class="amount">${yen(totals.total_amount)}-</div>
+    </div>
+    </div>
+
+
+    <div class="company-box">
+  <div class="company-main">
+
+    <img
+      class="logo-img"
+      src="https://portal.bizlabo-tokyo.com/assets/bizlabo-logo.png">
+
+    <div>
+      <div class="company-name">
+        株式会社ビジネスラボ
+      </div>
+
+      <div class="company-detail">
+        〒103-0026 東京都中央区日本橋兜町2-13<br>
+        兜町第6葉山ビル4階<br>
+        TEL: 03-6555-4496 FAX: 03-4496-4103<br>
+        登録番号: T7010003027314
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+      <table>
+        ${tableHeaderHtml}
+        <tbody>
+          ${bodyRows}
+          ${totalRow}
+        </tbody>
+      </table>
+
+      <div class="bottom">
+    <div>
+      <div class="bottom-title">支払期限</div>
+      <div class="bottom-box center" style="font-size:12px;padding-top:9px;white-space:nowrap;">
+        ${formatDateJa(dueDate)}
+      </div>
+    </div>
+
+    <div>
+      <div class="bottom-title">お振込先</div>
+      <div class="bottom-box">
+        ${esc(data.bank_info || '三井住友銀行　日本橋東支店（店番号：034）\\n普通預金　7828377\\nカ）ビジネスラボ').replaceAll('\\n', '<br>')}
+      </div>
+    </div>
+
+    <div>
+      <div class="bottom-title">備考</div>
+      <div class="bottom-box">
+        ・お振込手数料は貴社にてご負担をお願い申し上げます。<br>
+        ・ご不明な点がございましたら、担当営業までお問い合わせください。<br>
+        ・本明細書は請求書の一覧表となります。詳細は各請求書をご確認ください。
+      </div>
+    </div>
+  </div>
+
+</div>
+    
   `;
-}).join('<div class="page-break"></div>');
+}).join('');
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -335,7 +416,7 @@ td{
   break-before: page;
   page-break-before: always;
 }
-  
+
 @media print{
   @page{
     size:A4 landscape;
@@ -344,109 +425,28 @@ td{
 
   html,body{
     width:297mm;
-    height:210mm;
     margin:0;
     padding:0;
-    overflow:hidden;
   }
 
   .page{
-    width:297mm;
-    height:210mm;
-    min-height:210mm;
-    margin:0;
-    padding:8mm;
-    position:relative;
-    overflow:hidden;
-  }
+  width:297mm;
+  height:210mm;
+  min-height:210mm;
+  margin:0;
+  padding:8mm;
+  position:relative;
+  page-break-after: always;
+}
+  .page:last-child{
+  page-break-after:auto;
+}
 }
 </style>
 </head>
 
 <body>
-<div class="page">
-
-  <div class="top-bar">
-  <div>一括請求明細書</div>
-  <div class="page-no">1 / 1 ページ</div>
-</div>
-
-  <div class="header">
-    <div>
-      <div style="margin-bottom:12px;">
-        <span class="label">請求日</span>
-        <span class="invoice-date-text">
-            ${formatDateJa(invoiceDate)}    
-        </span>
-      </div>
-
-      <span class="label">ご請求先</span>
-      <div class="box">
-        ${esc(data.customer_name)}　御中<br>
-        ${esc(data.customer_address || '')}
-      </div>
-    </div>
-
-   
-    <div class="amount-wrap">
-        <div class="amount-box">
-        <div class="amount-title">御請求金額</div>
-        <div class="amount">${yen(totals.total_amount)}-</div>
-    </div>
-    </div>
-
-
-    <div class="company-box">
-  <div class="company-main">
-
-    <img
-      class="logo-img"
-      src="https://portal.bizlabo-tokyo.com/assets/bizlabo-logo.png">
-
-    <div>
-      <div class="company-name">
-        株式会社ビジネスラボ
-      </div>
-
-      <div class="company-detail">
-        〒103-0026 東京都中央区日本橋兜町2-13<br>
-        兜町第6葉山ビル4階<br>
-        TEL: 03-6555-4496 FAX: 03-4496-4103<br>
-        登録番号: T7010003027314
-      </div>
-    </div>
-    </div>
-  </div>
-</div>
-
-  ${tablesHtml}
-
-  <div class="bottom">
-    <div>
-      <div class="bottom-title">支払期限</div>
-      <div class="bottom-box center" style="font-size:12px;padding-top:9px;white-space:nowrap;">
-        ${formatDateJa(dueDate)}
-      </div>
-    </div>
-
-    <div>
-      <div class="bottom-title">お振込先</div>
-      <div class="bottom-box">
-        ${esc(data.bank_info || '三井住友銀行　日本橋東支店（店番号：034）\\n普通預金　7828377\\nカ）ビジネスラボ').replaceAll('\\n', '<br>')}
-      </div>
-    </div>
-
-    <div>
-      <div class="bottom-title">備考</div>
-      <div class="bottom-box">
-        ・お振込手数料は貴社にてご負担をお願い申し上げます。<br>
-        ・ご不明な点がございましたら、担当営業までお問い合わせください。<br>
-        ・本明細書は請求書の一覧表となります。詳細は各請求書をご確認ください。
-      </div>
-    </div>
-  </div>
-
-</div>
+  ${pageHtmls}
 </body>
 </html>`;
 }
