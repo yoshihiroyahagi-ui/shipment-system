@@ -53,18 +53,70 @@ console.log('[bulk invoice date]', {
 });
   const dueDate = data.due_date || data.payment_due_date || data.dueDate || '';
 
-  const rowHtml = rows.map((r, i) => `
+  const pageSize = 20;
+
+const pages = [];
+for (let i = 0; i < rows.length; i += pageSize) {
+  pages.push(rows.slice(i, i + pageSize));
+}
+
+const tableHeaderHtml = `
+  <thead>
     <tr>
-      <td class="center">${i + 1}</td>
-      <td class="center">${esc(r.invoice_no)}</td>
-      <td class="right">${yen(r.taxable_amount)}</td>
-      <td class="right">${yen(r.tax_amount)}</td>
-      <td class="right">${yen(r.exempt_amount)}</td>
-      <td class="right">${yen(r.advance_amount)}</td>
-      <td class="right bold">${yen(r.total_amount)}</td>
-      <td class="remark-cell">${renderRemark(r)}</td>
+      <th style="width:5.56%;">No.</th>
+      <th style="width:11.11%;">請求書No.</th>
+      <th style="width:11.11%;">課税対象金額</th>
+      <th style="width:11.11%;">消費税</th>
+      <th style="width:11.11%;">非課税金額</th>
+      <th style="width:11.11%;">対象外／立替</th>
+      <th style="width:11.11%;">請求合計金額</th>
+      <th style="width:27.78%;">備考</th>
     </tr>
-  `).join('');
+  </thead>
+`;
+
+const tablesHtml = pages.map((pageRows, pageIndex) => {
+  const bodyRows = pageRows.map((r, j) => {
+    const i = pageIndex * pageSize + j;
+
+    return `
+      <tr>
+        <td class="center">${i + 1}</td>
+        <td class="center">${esc(r.invoice_no)}</td>
+        <td class="right">${yen(r.taxable_amount)}</td>
+        <td class="right">${yen(r.tax_amount)}</td>
+        <td class="right">${yen(r.exempt_amount)}</td>
+        <td class="right">${yen(r.advance_amount)}</td>
+        <td class="right bold">${yen(r.total_amount)}</td>
+        <td class="remark-cell">${renderRemark(r)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const totalRow = pageIndex === pages.length - 1
+    ? `
+      <tr class="total-row">
+        <td colspan="2" class="center">合計</td>
+        <td class="right">${yen(totals.taxable_amount)}</td>
+        <td class="right">${yen(totals.tax_amount)}</td>
+        <td class="right">${yen(totals.exempt_amount)}</td>
+        <td class="right">${yen(totals.advance_amount)}</td>
+        <td class="right">${yen(totals.total_amount)}</td>
+        <td class="blank"></td>
+      </tr>
+    `
+    : '';
+
+  return `
+    <table>
+      ${tableHeaderHtml}
+      <tbody>
+        ${bodyRows}
+        ${totalRow}
+      </tbody>
+    </table>
+  `;
+}).join('<div class="page-break"></div>');
 
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -279,7 +331,11 @@ td{
   line-height:1.25;
   font-size:8px;
 }
-
+.page-break {
+  break-before: page;
+  page-break-before: always;
+}
+  
 @media print{
   @page{
     size:A4 landscape;
@@ -363,33 +419,7 @@ td{
   </div>
 </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th style="width:5.56%;">No.</th>
-        <th style="width:11.11%;">請求書No.</th>
-        <th style="width:11.11%;">課税対象金額</th>
-        <th style="width:11.11%;">消費税</th>
-        <th style="width:11.11%;">非課税金額</th>
-        <th style="width:11.11%;">対象外／立替</th>
-        <th style="width:11.11%;">請求合計金額</th>
-        <th style="width:27.78%;">備考</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rowHtml}
-
-      <tr class="total-row">
-        <td colspan="2" class="center">合計</td>
-        <td class="right">${yen(totals.taxable_amount)}</td>
-        <td class="right">${yen(totals.tax_amount)}</td>
-        <td class="right">${yen(totals.exempt_amount)}</td>
-        <td class="right">${yen(totals.advance_amount)}</td>
-        <td class="right">${yen(totals.total_amount)}</td>
-        <td class="blank"></td>
-      </tr>
-    </tbody>
-  </table>
+  ${tablesHtml}
 
   <div class="bottom">
     <div>
