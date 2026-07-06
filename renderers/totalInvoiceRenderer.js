@@ -131,12 +131,14 @@ const pageHtmls = pages.map((pageRows, pageIndex) => {
     </div>
 
    
-    <div class="amount-wrap">
-        <div class="amount-box">
-        <div class="amount-title">御請求金額</div>
-        <div class="amount">${yen(totals.total_amount)}-</div>
-    </div>
-    </div>
+    ${pageIndex === 0 ? `
+<div class="amount-wrap">
+  <div class="amount-box">
+    <div class="amount-title">御請求金額</div>
+    <div class="amount">${yen(totals.total_amount)}-</div>
+  </div>
+</div>
+` : '<div></div>'}
 
 
     <div class="company-box">
