@@ -1371,11 +1371,30 @@ function mapLineRow(row) {
     cargo_inbound: row.shipments?.cargo_inbound || '',
     cy_cut: row.shipments?.cy_cut || '',
     earliest_delivery_date: row.shipments?.earliest_delivery_date || '',
-    vehicle_type: row.shipments?.vehicle_type || '',
-    carrier_name: row.shipments?.carrier_name || '',
-    vehicle_no: row.shipments?.vehicle_no || '',
-    driver_name: row.shipments?.driver_name || '',
-    driver_phone: row.shipments?.driver_phone || '',
+    vehicle_type:
+  row.vehicle_type ||
+  row.shipments?.vehicle_type ||
+  '',
+
+carrier_name:
+  row.carrier_name ||
+  row.shipments?.carrier_name ||
+  '',
+
+vehicle_no:
+  row.vehicle_no ||
+  row.shipments?.vehicle_no ||
+  '',
+
+driver_name:
+  row.driver_name ||
+  row.shipments?.driver_name ||
+  '',
+
+driver_phone:
+  row.driver_phone ||
+  row.shipments?.driver_phone ||
+  '',
 
     container_no_1: row.shipments?.container_no_1 || '',
     container_type_1: row.shipments?.container_type_1 || '',
@@ -1464,6 +1483,11 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
       commodity_note,
       customer_ref_no,
       updated_at,
+      vehicle_type,
+      carrier_name,
+      vehicle_no,
+      driver_name,
+      driver_phone,
       shipments!inner (
         shipment_id,
         job_no,
@@ -1561,6 +1585,11 @@ async function getLineDetail(lineId, customerCode) {
       remarks,
       commodity_note,
       customer_ref_no,
+      vehicle_type,
+      carrier_name,
+      vehicle_no,
+      driver_name,
+      driver_phone,
       updated_at,
       shipments!inner (
         shipment_id,
@@ -1588,11 +1617,6 @@ async function getLineDetail(lineId, customerCode) {
         customs_status,
         cargo_inbound,
         cy_cut,
-        vehicle_type,
-        carrier_name,
-        vehicle_no,
-        driver_name,
-        driver_phone,
         container_no_1, container_type_1, seal_no_1, pcs_1, gw_kg_1, cbm_1,
         container_no_2, container_type_2, seal_no_2, pcs_2, gw_kg_2, cbm_2,
         container_no_3, container_type_3, seal_no_3, pcs_3, gw_kg_3, cbm_3,
