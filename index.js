@@ -2209,12 +2209,42 @@ console.log('[broker debug]', {
 
     const mapped = rows.map(row => mapAdminShipmentRow(row, customerMap, supplierMap, partnerMap));
     const mappedWithBicon = await applyBiconFlagsAcrossRows(mapped);
+    const shipmentIds = mappedWithBicon
+      .map(r => String(r.shipment_id || '').trim())
+      .filter(Boolean);
+
+    let unreadActivityMap = {};
+
+    if (shipmentIds.length > 0) {
+      const { data: activityRows, error: activityError } = await supabase
+        .from('shipment_activities')
+        .select('shipment_id')
+        .in('shipment_id', shipmentIds)
+        .eq('is_read_admin', false);
+
+      if (activityError) throw activityError;
+
+      unreadActivityMap = (activityRows || []).reduce((acc, activity) => {
+        const shipmentId = String(activity.shipment_id || '').trim();
+
+        if (!shipmentId) return acc;
+
+        acc[shipmentId] = (acc[shipmentId] || 0) + 1;
+        return acc;
+      }, {});
+    }
+
+    const mappedWithActivities = mappedWithBicon.map(row => ({
+      ...row,
+      unread_activity_count:
+        unreadActivityMap[String(row.shipment_id || '').trim()] || 0
+    }));
    
     res.json({
       ok: true,
-      rows: mappedWithBicon,
-      next_offset: offset + mappedWithBicon.length,
-      has_more: mappedWithBicon.length === limit
+      rows: mappedWithActivities,
+      next_offset: offset + mappedWithActivities.length,
+      has_more: mappedWithActivities.length === limit
     });
   } catch (err) {
     console.error('GET /api/admin/shipments error:', err);
