@@ -5695,7 +5695,51 @@ app.post('/api/customer/upload-docs', async (req, res) => {
     });
   }
 });
+app.get('/api/admin/shipment-activities', async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 50);
 
+    const { data, error, count } = await supabase
+      .from('shipment_activities')
+      .select(`
+        activity_id,
+        shipment_id,
+        line_id,
+        customer_code,
+        actor_type,
+        actor_id,
+        activity_type,
+        title,
+        message,
+        file_name,
+        file_url,
+        is_read_admin,
+        read_at_admin,
+        created_at
+      `, {
+        count: 'exact'
+      })
+      .eq('is_read_admin', false)
+      .order('created_at', { ascending: false })
+      .range(0, limit - 1);
+
+    if (error) throw error;
+
+    return res.json({
+      ok: true,
+      rows: data || [],
+      unread_count: count || 0
+    });
+
+  } catch (err) {
+    console.error('GET /api/admin/shipment-activities error:', err);
+
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
 app.get('/api/customer/docs-by-line', async (req, res) => {
   try {
     const lineId = req.query.line_id;
