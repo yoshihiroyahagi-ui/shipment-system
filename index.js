@@ -3088,17 +3088,54 @@ app.post('/api/customer/save-comment', async (req, res) => {
 
     const session = await getSessionOrThrow(req);
 
+    const commentText = String(customer_comment || '').trim();
+
     const { error } = await supabase
       .from('shipments')
-      .update({ customer_comment })
+      .update({
+        customer_comment: commentText
+      })
       .eq('shipment_id', shipment_id)
       .eq('customer_code', session.customer_code);
 
     if (error) throw error;
 
+    if (commentText) {
+      const activityId =
+        `ACT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const { error: activityError } = await supabase
+        .from('shipment_activities')
+        .insert({
+          activity_id: activityId,
+          shipment_id: shipment_id,
+          line_id: null,
+          customer_code: session.customer_code,
+
+          actor_type: 'CUSTOMER',
+          actor_id: session_id || null,
+          activity_type: 'CUSTOMER_COMMENT',
+
+          title: '顧客コメントが追加されました',
+          message: commentText,
+
+          is_read_admin: false
+        });
+
+      if (activityError) throw activityError;
+    }
+
     res.json({ ok: true });
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    console.error(
+      'POST /api/customer/save-comment error:',
+      e
+    );
+
+    res.status(400).json({
+      ok: false,
+      error: e.message
+    });
   }
 });
 app.get('/api/master/inbound-places', async (req, res) => {
