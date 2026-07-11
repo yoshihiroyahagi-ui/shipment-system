@@ -5770,6 +5770,34 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
     });
   }
 });
+app.post('/api/admin/read-activities', async (req, res) => {
+  try {
+    const { shipment_id } = req.body;
+
+    if (!shipment_id) {
+      throw new Error('shipment_id is required');
+    }
+
+    const { error } = await supabase
+      .from('shipment_activities')
+      .update({
+        is_read_admin: true,
+        read_at_admin: new Date().toISOString()
+      })
+      .eq('shipment_id', shipment_id)
+      .eq('is_read_admin', false);
+
+    if (error) throw error;
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    res.status(400).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
 app.get('/api/customer/docs-by-line', async (req, res) => {
   try {
     const lineId = req.query.line_id;
