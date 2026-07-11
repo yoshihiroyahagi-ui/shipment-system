@@ -1458,9 +1458,9 @@ driver_phone:
   }
 }
 
-async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit = 15) {
+async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit = 1000) {
   const from = Number(offset) || 0
-  const size = Number(limit) || 15
+  const size = Number(limit) || 1000
   const to = from + size - 1
 
   const { data, error, count } = await supabase
@@ -1819,7 +1819,7 @@ app.get('/api/my-lines', async (req, res) => {
     const sessionId = String(req.query.session_id || '').trim()
     const filterMode = String(req.query.filter_mode || 'ACTIVE').trim()
     const offset = Number(req.query.offset || 0)
-    const limit = Number(req.query.limit || 15)
+    const limit = Number(req.query.limit || 1000)
 
     const session = await getSessionOrThrow(req)
 
