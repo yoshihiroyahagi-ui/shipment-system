@@ -4504,6 +4504,203 @@ const days = {};
     });
   }
 });
+app.get('/api/customer/calendar', async (req, res) => {
+  try {
+    const session = await getSessionOrThrow(req);
+
+    const customerCode = String(session.customer_code || '').trim();
+    const month = String(req.query.month || '').trim();
+    const basis = String(req.query.basis || 'arrival').trim();
+
+    if (!customerCode) {
+      return res.status(401).json({
+        ok: false,
+        error: '顧客情報を取得できません'
+      });
+    }
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'month is required. format: YYYY-MM'
+      });
+    }
+
+    const start = `${month}-01`;
+
+    const [y, m] = month.split('-').map(Number);
+
+    const endY = m === 12 ? y + 1 : y;
+    const endM = m === 12 ? 1 : m + 1;
+
+    const end =
+      `${endY}-${String(endM).padStart(2, '0')}-01`;
+
+    const dateField =
+      basis === 'departure'
+        ? 'etd'
+        : basis === 'delivery'
+          ? null
+          : 'eta';
+
+    let query = supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        status,
+        customs_status,
+        eta,
+        etd,
+        pod,
+        customer_code,
+        broker_code,
+        trucker_code,
+        container_type_1,
+        shipment_lines (
+          line_id,
+          delivery_fixed,
+          delivery_fixed_time,
+          delivery_request_date,
+          delivery_request_time,
+          delivery_dest_short,
+          delivery_dest_id,
+          dests (
+            dest_name
+          )
+        )
+      `)
+      .eq('customer_code', customerCode);
+
+    if (dateField) {
+      query = query
+        .gte(dateField, start)
+        .lt(dateField, end)
+        .order(dateField, { ascending: true });
+    } else if (basis === 'delivery') {
+      /*
+       * 配送日はshipment_lines側にあるため、
+       * shipments側では顧客だけに絞って取得する。
+       */
+      query = query.limit(1000);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const days = {};
+
+    (data || []).forEach(shipment => {
+      const lines = Array.isArray(shipment.shipment_lines)
+        ? shipment.shipment_lines
+        : [];
+
+      lines.forEach(line => {
+        const date =
+          basis === 'delivery'
+            ? String(line.delivery_fixed || '')
+                .replace(/\//g, '-')
+                .slice(0, 10)
+            : basis === 'departure'
+              ? String(shipment.etd || '')
+                  .replace(/\//g, '-')
+                  .slice(0, 10)
+              : String(shipment.eta || '')
+                  .replace(/\//g, '-')
+                  .slice(0, 10);
+
+        if (!date) return;
+        if (date < start || date >= end) return;
+
+        if (!days[date]) {
+          days[date] = {
+            shipments: []
+          };
+        }
+
+        const extractCore = code => {
+          if (!code) return '';
+          return String(code).split('-')[0];
+        };
+
+        const brokerCore = extractCore(shipment.broker_code);
+        const truckerCore = extractCore(shipment.trucker_code);
+
+        const isSamePartner =
+          brokerCore &&
+          brokerCore === truckerCore;
+
+        days[date].shipments.push({
+          line_id: line.line_id,
+          shipment_id: shipment.shipment_id,
+          job_no: shipment.job_no,
+          status: shipment.status,
+          customs_status: shipment.customs_status,
+
+          delivery_fixed:
+            line.delivery_fixed || '',
+
+          delivery_fixed_time:
+            line.delivery_fixed_time || '',
+
+          delivery_request_date:
+            line.delivery_request_date || '',
+
+          delivery_request_time:
+            line.delivery_request_time || '',
+
+          delivery_time:
+            basis === 'delivery'
+              ? line.delivery_fixed_time || ''
+              : '',
+
+          delivery_area:
+            line.dests?.dest_name ||
+            line.delivery_dest_short ||
+            line.delivery_dest_id ||
+            '',
+
+          pickup_port:
+            shipment.pod || '',
+
+          customer_name:
+            shipment.customer_code || '',
+
+          container_type:
+            shipment.container_type_1 || '',
+
+          is_broker_and_trucker:
+            isSamePartner
+        });
+      });
+    });
+
+    return res.json({
+      ok: true,
+      month,
+      basis,
+      days
+    });
+  } catch (err) {
+    console.error(
+      '[customer calendar] error:',
+      err
+    );
+
+    const message =
+      err.message ||
+      String(err);
+
+    const status =
+      message.includes('セッション') ? 401 : 500;
+
+    return res.status(status).json({
+      ok: false,
+      error: message
+    });
+  }
+});
 app.post('/api/trucker/login', async (req, res) => {
   try {
     const { token } = req.body || {};
