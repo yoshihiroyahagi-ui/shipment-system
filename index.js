@@ -5552,17 +5552,30 @@ app.post('/api/admin/customs/drive-result', async (req, res) => {
 });
 app.post('/api/customer/upload-docs', async (req, res) => {
   try {
-    const { shipment_id, files } = req.body || {};
+    const { shipment_id, files, session_id } = req.body || {};
 
-    if (!shipment_id) throw new Error('shipment_id is required');
+    if (!shipment_id) {
+      throw new Error('shipment_id is required');
+    }
+
     if (!Array.isArray(files) || files.length === 0) {
       throw new Error('files is required');
     }
 
+    // 顧客セッション確認
+    const session = await getSessionOrThrow(req);
+
+    // ログイン顧客の案件だけ取得
     const { data: shipment, error: sErr } = await supabase
       .from('shipments')
-      .select('shipment_id, job_no, customer_docs')
+      .select(`
+        shipment_id,
+        job_no,
+        customer_code,
+        customer_docs
+      `)
       .eq('shipment_id', shipment_id)
+      .eq('customer_code', session.customer_code)
       .single();
 
     if (sErr) throw sErr;
@@ -5572,23 +5585,45 @@ app.post('/api/customer/upload-docs', async (req, res) => {
 
     if (typeof shipment.customer_docs === 'string') {
       try {
-        existingDocs = JSON.parse(shipment.customer_docs || '{}');
+        existingDocs = JSON.parse(
+          shipment.customer_docs || '{}'
+        );
       } catch {
         existingDocs = {};
       }
-    } else if (shipment.customer_docs && typeof shipment.customer_docs === 'object') {
+    } else if (
+      shipment.customer_docs &&
+      typeof shipment.customer_docs === 'object'
+    ) {
       existingDocs = shipment.customer_docs;
     }
 
     const savedDocs = {};
+    const savedFileRecords = [];
 
     for (const f of files) {
-      const type = f.type;
-      const url = f.url;
+      const type = String(f.type || '').trim();
+      const url = String(f.url || '').trim();
 
       if (!type || !url) continue;
 
       savedDocs[type] = url;
+
+      savedFileRecords.push({
+        type,
+        url,
+        fileName:
+          String(
+            f.file_name ||
+            f.filename ||
+            f.name ||
+            type
+          ).trim()
+      });
+    }
+
+    if (savedFileRecords.length === 0) {
+      throw new Error('有効な書類データがありません');
     }
 
     const mergedDocs = {
@@ -5601,9 +5636,41 @@ app.post('/api/customer/upload-docs', async (req, res) => {
       .update({
         customer_docs: JSON.stringify(mergedDocs)
       })
-      .eq('shipment_id', shipment_id);
+      .eq('shipment_id', shipment_id)
+      .eq('customer_code', session.customer_code);
 
     if (uErr) throw uErr;
+
+    // アップロードされた書類ごとにactivity登録
+    const activityRows = savedFileRecords.map((file, index) => ({
+      activity_id:
+        `ACT-${Date.now()}-${index}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
+
+      shipment_id,
+      line_id: null,
+      customer_code: session.customer_code,
+
+      actor_type: 'CUSTOMER',
+      actor_id: session_id || null,
+      activity_type: 'CUSTOMER_DOCUMENT',
+
+      title: '顧客書類がアップロードされました',
+      message:
+        `${shipment.job_no || shipment_id}：${file.fileName}`,
+
+      file_name: file.fileName || null,
+      file_url: file.url || null,
+
+      is_read_admin: false
+    }));
+
+    const { error: activityError } = await supabase
+      .from('shipment_activities')
+      .insert(activityRows);
+
+    if (activityError) throw activityError;
 
     return res.json({
       ok: true,
@@ -5611,10 +5678,20 @@ app.post('/api/customer/upload-docs', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[customer upload-docs] error:', err);
-    return res.status(500).json({
+    console.error(
+      '[customer upload-docs] error:',
+      err
+    );
+
+    const message =
+      err.message || String(err);
+
+    const status =
+      message.includes('セッション') ? 401 : 400;
+
+    return res.status(status).json({
       ok: false,
-      error: err.message || String(err)
+      error: message
     });
   }
 });
