@@ -7598,6 +7598,87 @@ app.get('/api/admin/shipment-activity-history', async (req, res) => {
     });
   }
 });
+app.get('/api/customer/shipment-activity-history', async (req, res) => {
+  try {
+    const session = await getSessionOrThrow(req);
+
+    const shipmentId =
+      String(req.query.shipment_id || '').trim();
+
+    if (!shipmentId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'shipment_id is required'
+      });
+    }
+
+    const customerCode =
+      String(session.customer_code || '').trim();
+
+    // 他社案件を見られないように確認
+    const { data: shipment, error: shipmentError } =
+      await supabase
+        .from('shipments')
+        .select('shipment_id, customer_code')
+        .eq('shipment_id', shipmentId)
+        .eq('customer_code', customerCode)
+        .single();
+
+    if (shipmentError) throw shipmentError;
+    if (!shipment) {
+      throw new Error('shipment not found');
+    }
+
+    const { data, error } = await supabase
+      .from('shipment_activities')
+      .select(`
+        activity_id,
+        shipment_id,
+        line_id,
+        actor_type,
+        actor_id,
+        activity_type,
+        title,
+        message,
+        field_name,
+        before_data,
+        after_data,
+        target_roles,
+        priority,
+        file_name,
+        file_url,
+        created_at
+      `)
+      .eq('shipment_id', shipmentId)
+      .eq('customer_code', customerCode)
+      .contains('target_roles', ['CUSTOMER'])
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
+
+    return res.json({
+      ok: true,
+      shipment_id: shipmentId,
+      rows: data || []
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/customer/shipment-activity-history error:',
+      err
+    );
+
+    const message = err.message || String(err);
+
+    return res.status(
+      message.includes('セッション') ? 401 : 400
+    ).json({
+      ok: false,
+      error: message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
