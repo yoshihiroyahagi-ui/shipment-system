@@ -2875,10 +2875,24 @@ if (Array.isArray(containers)) {
 }
     const { data: existingLines, error: existingLineError } = await supabase
   .from('shipment_lines')
-  .select('line_id')
+  .select(`
+    line_id,
+    vehicle_type,
+    carrier_name,
+    vehicle_no,
+    driver_name,
+    driver_phone
+  `)
   .eq('shipment_id', savedShipmentId);
 
 if (existingLineError) throw existingLineError;
+
+const existingLineMap = new Map(
+  (existingLines || []).map(row => [
+    String(row.line_id || '').trim(),
+    row
+  ])
+);
 
 const incomingLineIds = new Set(
   lines.map(l => String(l.line_id || '').trim()).filter(Boolean)
@@ -2900,6 +2914,11 @@ if (deleteLineIds.length > 0) {
     // lines 保存
     for (const line of lines) {
       const lineId = String(line.line_id || '').trim();
+
+const existingLine =
+  lineId && !lineId.startsWith('LINE-')
+    ? existingLineMap.get(lineId) || null
+    : null;
 
 const isTempLineId =
   lineId.startsWith('LINE-');
@@ -2957,7 +2976,51 @@ const clean = (v) => {
           .eq('line_id', lineId);
 
         if (lineUpdateError) throw lineUpdateError;
-      } else {
+          const vehicleNoChanges = buildActivityChanges(
+    existingLine || {},
+    linePayload,
+    ['vehicle_no']
+  );
+
+  if (vehicleNoChanges.changed) {
+    const oldVehicleNo =
+      vehicleNoChanges.beforeData.vehicle_no || '未定';
+
+    const newVehicleNo =
+      vehicleNoChanges.afterData.vehicle_no || '未定';
+
+    await insertShipmentActivity({
+      shipmentId: savedShipmentId,
+      lineId,
+      customerCode:
+        shipment.customer_code ||
+        line.customer_code ||
+        null,
+
+      actorType: 'ADMIN',
+      actorId: null,
+
+      activityType: 'VEHICLE_NO_UPDATED',
+      title: '車番が更新されました',
+      message:
+        `${savedJobNo || savedShipmentId} の車番が更新されました。` +
+        `詳細画面を開いて確認してください。`,
+
+      fieldName: 'vehicle_no',
+      beforeData: {
+        vehicle_no: oldVehicleNo
+      },
+      afterData: {
+        vehicle_no: newVehicleNo
+      },
+
+      targetRoles: ['CUSTOMER'],
+
+      // 管理側自身の操作なので管理通知は既読扱い
+      isReadAdmin: true
+    });
+  }
+ } else {
         linePayload.line_id = `LIN-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
         const { error: lineInsertError } = await supabase
