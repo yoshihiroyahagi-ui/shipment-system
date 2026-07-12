@@ -7535,6 +7535,69 @@ app.post('/api/customer/read-activity', async (req, res) => {
     });
   }
 });
+app.get('/api/admin/shipment-activity-history', async (req, res) => {
+  try {
+    const shipmentId =
+      String(req.query.shipment_id || '').trim();
+
+    if (!shipmentId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'shipment_id is required'
+      });
+    }
+
+    const limitRaw = Number(req.query.limit || 200);
+    const limit = Math.min(
+      Math.max(Number.isFinite(limitRaw) ? limitRaw : 200, 1),
+      500
+    );
+
+    const { data, error } = await supabase
+      .from('shipment_activities')
+      .select(`
+        activity_id,
+        shipment_id,
+        line_id,
+        customer_code,
+        actor_type,
+        actor_id,
+        activity_type,
+        title,
+        message,
+        field_name,
+        before_data,
+        after_data,
+        target_roles,
+        priority,
+        file_name,
+        file_url,
+        created_at
+      `)
+      .eq('shipment_id', shipmentId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return res.json({
+      ok: true,
+      shipment_id: shipmentId,
+      rows: data || []
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/admin/shipment-activity-history error:',
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
