@@ -411,7 +411,118 @@ async function buildTotalInvoiceData({
     totals
   };
 }
+async function insertShipmentActivity({
+  shipmentId,
+  lineId = null,
+  customerCode = null,
 
+  actorType,
+  actorId = null,
+
+  activityType,
+  title,
+  message = '',
+
+  fieldName = null,
+  beforeData = null,
+  afterData = null,
+
+  targetRoles = [],
+
+  fileName = null,
+  fileUrl = null,
+
+  isReadAdmin = false
+}) {
+  const activityId =
+    `ACT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const payload = {
+    activity_id: activityId,
+    shipment_id: shipmentId,
+    line_id: lineId,
+    customer_code: customerCode,
+
+    actor_type: actorType,
+    actor_id: actorId,
+
+    activity_type: activityType,
+    title,
+    message,
+
+    field_name: fieldName,
+    before_data: beforeData,
+    after_data: afterData,
+
+    target_roles:
+      Array.isArray(targetRoles) ? targetRoles : [],
+
+    file_name: fileName,
+    file_url: fileUrl,
+
+    is_read_admin: isReadAdmin
+  };
+
+  const { data, error } = await supabase
+    .from('shipment_activities')
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error(
+      '[insertShipmentActivity] error:',
+      {
+        error,
+        payload
+      }
+    );
+
+    throw error;
+  }
+
+  return data;
+}
+function normalizeActivityValue(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  return String(value).trim();
+}
+
+function hasActivityChanged(beforeValue, afterValue) {
+  return (
+    normalizeActivityValue(beforeValue) !==
+    normalizeActivityValue(afterValue)
+  );
+}
+function buildActivityChanges(beforeRow = {}, afterRow = {}, fields = []) {
+  const beforeData = {};
+  const afterData = {};
+  const changedFields = [];
+
+  fields.forEach(field => {
+    const beforeValue =
+      normalizeActivityValue(beforeRow[field]);
+
+    const afterValue =
+      normalizeActivityValue(afterRow[field]);
+
+    if (beforeValue !== afterValue) {
+      changedFields.push(field);
+      beforeData[field] = beforeRow[field] ?? null;
+      afterData[field] = afterRow[field] ?? null;
+    }
+  });
+
+  return {
+    changed: changedFields.length > 0,
+    changedFields,
+    beforeData,
+    afterData
+  };
+}
 async function buildInvoiceLinesFromShipmentCharges(invoice_id, shipment_id) {
   const { data: charges, error: chErr } = await supabase
     .from('shipment_charges')
