@@ -7467,6 +7467,74 @@ app.get('/api/customer/activities', async (req, res) => {
     });
   }
 });
+app.post('/api/customer/read-activity', async (req, res) => {
+  try {
+    const { activity_id } = req.body || {};
+
+    if (!activity_id) {
+      throw new Error('activity_id is required');
+    }
+
+    const session = await getSessionOrThrow(req);
+
+    const customerCode =
+      String(session.customer_code || '').trim();
+
+    const { data: activity, error: activityError } =
+      await supabase
+        .from('shipment_activities')
+        .select(`
+          activity_id,
+          customer_code,
+          target_roles
+        `)
+        .eq('activity_id', activity_id)
+        .eq('customer_code', customerCode)
+        .contains('target_roles', ['CUSTOMER'])
+        .single();
+
+    if (activityError) throw activityError;
+    if (!activity) throw new Error('activity not found');
+
+    const now = new Date().toISOString();
+
+    const { error: readError } = await supabase
+      .from('shipment_activity_reads')
+      .upsert({
+        read_id: `READ-CUSTOMER-${customerCode}-${activity_id}`,
+        activity_id,
+        viewer_type: 'CUSTOMER',
+        viewer_id: customerCode,
+        read_at: now,
+        dismissed_at: null
+      }, {
+        onConflict: 'read_id'
+      });
+
+    if (readError) throw readError;
+
+    return res.json({
+      ok: true,
+      activity_id,
+      read_at: now
+    });
+
+  } catch (err) {
+    console.error(
+      'POST /api/customer/read-activity error:',
+      err
+    );
+
+    const message = err.message || String(err);
+
+    return res.status(
+      message.includes('セッション') ? 401 : 400
+    ).json({
+      ok: false,
+      error: message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
