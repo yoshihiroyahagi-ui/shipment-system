@@ -7269,6 +7269,204 @@ app.post('/api/invoice/receivables/mark-paid', async (req, res) => {
     });
   }
 });
+app.get('/api/customer/activities', async (req, res) => {
+  try {
+    const session = await getSessionOrThrow(req);
+
+    const customerCode =
+      String(session.customer_code || '').trim();
+
+    const limitRaw = Number(req.query.limit || 50);
+    const limit = Math.min(
+      Math.max(Number.isFinite(limitRaw) ? limitRaw : 50, 1),
+      200
+    );
+
+    if (!customerCode) {
+      throw new Error('顧客コードを取得できません');
+    }
+
+    /*
+     * 顧客向けActivityを取得
+     *
+     * customer_code:
+     *   ログイン顧客の案件だけ
+     *
+     * target_roles:
+     *   CUSTOMER向けだけ
+     */
+    const { data: activityRows, error: activityError } =
+      await supabase
+        .from('shipment_activities')
+        .select(`
+          activity_id,
+          shipment_id,
+          line_id,
+          customer_code,
+          actor_type,
+          actor_id,
+          activity_type,
+          title,
+          message,
+          file_name,
+          file_url,
+          field_name,
+          before_data,
+          after_data,
+          target_roles,
+          priority,
+          created_at
+        `)
+        .eq('customer_code', customerCode)
+        .contains('target_roles', ['CUSTOMER'])
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+    if (activityError) throw activityError;
+
+    const activities = activityRows || [];
+
+    if (activities.length === 0) {
+      return res.json({
+        ok: true,
+        rows: [],
+        unread_count: 0
+      });
+    }
+
+    const activityIds = activities
+      .map(row => String(row.activity_id || '').trim())
+      .filter(Boolean);
+
+    /*
+     * 当面はcustomer_code単位で既読管理する。
+     *
+     * 同じ顧客の複数PC・複数担当者で
+     * 既読状態を共有する設計。
+     */
+    const { data: readRows, error: readError } =
+      await supabase
+        .from('shipment_activity_reads')
+        .select(`
+          activity_id,
+          read_at,
+          dismissed_at
+        `)
+        .eq('viewer_type', 'CUSTOMER')
+        .eq('viewer_id', customerCode)
+        .in('activity_id', activityIds);
+
+    if (readError) throw readError;
+
+    const readMap = new Map(
+      (readRows || []).map(row => [
+        String(row.activity_id || '').trim(),
+        {
+          read_at: row.read_at || null,
+          dismissed_at: row.dismissed_at || null
+        }
+      ])
+    );
+
+    /*
+     * shipment単位のActivityはline_idがnullの場合がある。
+     * 顧客詳細画面はline_idで開くため、
+     * 各shipmentの代表line_idを取得する。
+     */
+    const shipmentIds = [
+      ...new Set(
+        activities
+          .map(row => String(row.shipment_id || '').trim())
+          .filter(Boolean)
+      )
+    ];
+
+    let firstLineMap = {};
+
+    if (shipmentIds.length > 0) {
+      const { data: lineRows, error: lineError } =
+        await supabase
+          .from('shipment_lines')
+          .select(`
+            shipment_id,
+            line_id
+          `)
+          .in('shipment_id', shipmentIds)
+          .eq('customer_code', customerCode)
+          .order('line_id', { ascending: true });
+
+      if (lineError) throw lineError;
+
+      firstLineMap = (lineRows || []).reduce((acc, row) => {
+        const shipmentId =
+          String(row.shipment_id || '').trim();
+
+        if (
+          shipmentId &&
+          !acc[shipmentId] &&
+          row.line_id
+        ) {
+          acc[shipmentId] = row.line_id;
+        }
+
+        return acc;
+      }, {});
+    }
+
+    const mappedRows = activities.map(activity => {
+      const readState =
+        readMap.get(String(activity.activity_id)) || {};
+
+      return {
+        ...activity,
+
+        open_line_id:
+          activity.line_id ||
+          firstLineMap[
+            String(activity.shipment_id || '').trim()
+          ] ||
+          null,
+
+        is_read: !!readState.read_at,
+        is_dismissed: !!readState.dismissed_at
+      };
+    });
+
+    /*
+     * 通知一覧には未読・未削除のものだけ返す。
+     * Activity本体は削除しないので、
+     * 将来の案件履歴APIでは全件取得できる。
+     */
+    const unreadRows = mappedRows
+      .filter(row => !row.is_read && !row.is_dismissed)
+      .slice(0, limit);
+
+    return res.json({
+      ok: true,
+      rows: unreadRows,
+      unread_count: mappedRows.filter(
+        row => !row.is_read && !row.is_dismissed
+      ).length
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/customer/activities error:',
+      err
+    );
+
+    const message =
+      err.message || String(err);
+
+    const status =
+      message.includes('セッション') ? 401 : 500;
+
+    return res.status(status).json({
+      ok: false,
+      error: message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
