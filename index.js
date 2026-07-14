@@ -1560,7 +1560,7 @@ async function getSessionOrThrow(req) {
 
   return session;
 }
-function mapLineRow(row) {
+function mapLineRow(row, deliveryCount = 1) {
   return {
     line_id: row.line_id || '',
     shipment_id: row.shipment_id || '',
@@ -1632,7 +1632,8 @@ driver_phone:
   row.driver_phone ||
   row.shipments?.driver_phone ||
   '',
-
+  delivery_count: deliveryCount,
+    delivery_note: row.delivery_note || '',
     container_no_1: row.shipments?.container_no_1 || '',
     container_type_1: row.shipments?.container_type_1 || '',
     pcs_1: row.shipments?.pcs_1 || '',
@@ -1769,7 +1770,22 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
 
   if (error) throw error
 
-  let rows = (data || []).map(mapLineRow)
+  const deliveryCountMap = new Map();
+
+(data || []).forEach(row => {
+  const shipmentId = row.shipment_id;
+  deliveryCountMap.set(
+    shipmentId,
+    (deliveryCountMap.get(shipmentId) || 0) + 1
+  );
+});
+
+  let rows = (data || []).map(row =>
+  mapLineRow(
+    row,
+    deliveryCountMap.get(row.shipment_id) || 1
+  )
+);
 
   rows.sort((a, b) => {
   const getNo = (v) => {
@@ -1827,6 +1843,7 @@ async function getLineDetail(lineId, customerCode) {
       vehicle_no,
       driver_name,
       driver_phone,
+      delivery_note,
       updated_at,
       shipments!inner (
         shipment_id,
@@ -1898,9 +1915,95 @@ async function getLineDetail(lineId, customerCode) {
     dests: destRec
   };
 
+    const { data: deliveryLines, error: deliveryLinesError } = await supabase
+    .from('shipment_lines')
+    .select(`
+      line_id,
+      shipment_id,
+      delivery_dest_id,
+      delivery_dest_short,
+      delivery_request_date,
+      delivery_request_time,
+      delivery_fixed,
+      delivery_fixed_time,
+      delivery_plan_date,
+      delivery_plan_time,
+      vehicle_type,
+      carrier_name,
+      vehicle_no,
+      driver_name,
+      driver_phone,
+      delivery_note,
+      remarks
+    `)
+    .eq('shipment_id', data.shipment_id)
+    .order('delivery_plan_date', { ascending: true })
+    .order('delivery_plan_time', { ascending: true });
+
+  if (deliveryLinesError) throw deliveryLinesError;
+
+    const deliveryDestIds = [
+    ...new Set(
+      (deliveryLines || [])
+        .map(line => line.delivery_dest_id)
+        .filter(Boolean)
+    )
+  ];
+
+  let deliveryDestMap = new Map();
+
+  if (deliveryDestIds.length > 0) {
+    const { data: deliveryDests, error: deliveryDestsError } =
+      await supabase
+        .from('dests')
+        .select(`
+          dest_id,
+          dest_name,
+          d_address1,
+          d_address2,
+          d_tel,
+          d_contact_person
+        `)
+        .in('dest_id', deliveryDestIds);
+
+    if (deliveryDestsError) throw deliveryDestsError;
+
+    deliveryDestMap = new Map(
+      (deliveryDests || []).map(dest => [
+        dest.dest_id,
+        dest
+      ])
+    );
+  }
+
+    const deliveries = (deliveryLines || []).map(line => {
+    const dest = deliveryDestMap.get(line.delivery_dest_id) || null;
+
+    return {
+      ...line,
+      delivery_dest_name:
+        dest?.dest_name ||
+        line.delivery_dest_short ||
+        '',
+
+      delivery_address:
+        [
+          dest?.d_address1,
+          dest?.d_address2
+        ]
+          .filter(Boolean)
+          .join(' '),
+
+      delivery_tel: dest?.d_tel || '',
+      delivery_contact_person:
+        dest?.d_contact_person || ''
+    };
+  });
+
   return {
     line: mapLineRow(merged),
-    shipment: data.shipments || {}
+    shipment: data.shipments || {},
+    deliveries
   };
 }
 
@@ -2112,7 +2215,7 @@ app.get('/api/line-detail', async (req, res) => {
     const session = await getSessionOrThrow(req)
     const result = await getLineDetail(lineId, session.customer_code)
 
-    res.json({ ok: true, line: result.line, shipment: result.shipment })
+    res.json({ ok: true, line: result.line, shipment: result.shipment, deliveries: result.deliveries || [] })
   } catch (error) {
     console.error('GET /api/line-detail error:', error)
     res.status(401).json({ ok: false, error: error.message || 'Internal server error' })
