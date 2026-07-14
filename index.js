@@ -1019,15 +1019,37 @@ app.get('/api/invoice/list', async (req, res) => {
 
     let q = supabase
       .from('invoice_headers')
-      .select('*')
-      .not('status', 'in', '("cancelled","canceled","cancel","キャンセル")')
+      .select(`
+        *,
+        invoice_lines (
+          billing_tax_type,
+          billing_amount_net,
+          billing_tax_amount,
+          billing_amount_gross,
+          show_on_invoice
+        )
+      `)
+      .not(
+        'status',
+        'in',
+        '("cancelled","canceled","cancel","キャンセル")'
+      )
       .order('created_at', { ascending: false });
 
-    if (billingMonth) q = q.eq('billing_month', billingMonth);
-    if (customerCode) q = q.eq('customer_code', customerCode);
-    if (status) q = q.eq('status', status);
+    if (billingMonth) {
+      q = q.eq('billing_month', billingMonth);
+    }
+
+    if (customerCode) {
+      q = q.eq('customer_code', customerCode);
+    }
+
+    if (status) {
+      q = q.eq('status', status);
+    }
 
     const { data, error } = await q;
+
     if (error) throw error;
 
     const shipmentIds = (data || [])
@@ -1045,29 +1067,133 @@ app.get('/api/invoice/list', async (req, res) => {
       if (shipErr) throw shipErr;
 
       const shipmentMap = new Map(
-        (shipments || []).map(s => [s.shipment_id, s.status])
+        (shipments || []).map(s => [
+          s.shipment_id,
+          s.status
+        ])
       );
 
-      const cancelledStatuses = ['cancelled', 'canceled', 'cancel', 'キャンセル'];
+      const cancelledStatuses = [
+        'cancelled',
+        'canceled',
+        'cancel',
+        'キャンセル'
+      ];
 
       filteredHeaders = (data || []).filter(h => {
         const sid = h.source_id || h.shipment_id;
-        const st = shipmentMap.get(sid);
+        const shipmentStatus = shipmentMap.get(sid);
 
         if (!sid) return true;
 
-        return !cancelledStatuses.includes(st);
+        return !cancelledStatuses.includes(shipmentStatus);
       });
     }
 
+    const toAmount = value => {
+      const n = Number(
+        String(value ?? '').replace(/,/g, '')
+      );
+
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const rows = filteredHeaders.map(header => {
+      const lines = (header.invoice_lines || [])
+        .filter(line => line.show_on_invoice !== false);
+
+      const totals = lines.reduce(
+        (sum, line) => {
+          const taxType = line.billing_tax_type || '';
+          const amountNet = toAmount(
+            line.billing_amount_net
+          );
+          const taxAmount = toAmount(
+            line.billing_tax_amount
+          );
+          const amountGross = toAmount(
+            line.billing_amount_gross
+          );
+
+          if (taxType === 'taxable') {
+            sum.taxable_total += amountNet;
+          }
+
+          if (taxType === 'exempt') {
+            sum.exempt_total += amountNet;
+          }
+
+          if (taxType === 'non_taxable') {
+            sum.non_taxable_total += amountNet;
+          }
+
+          if (taxType === 'out_of_scope') {
+            sum.out_of_scope_total += amountNet;
+          }
+
+          if (taxType === 'pass_through') {
+            sum.pass_through_total += amountNet;
+          }
+
+          sum.tax_total += taxAmount;
+
+          sum.lines_net_total += amountNet;
+          sum.lines_gross_total +=
+            amountGross || amountNet + taxAmount;
+
+          return sum;
+        },
+        {
+          taxable_total: 0,
+          tax_total: 0,
+          exempt_total: 0,
+          non_taxable_total: 0,
+          out_of_scope_total: 0,
+          pass_through_total: 0,
+          lines_net_total: 0,
+          lines_gross_total: 0
+        }
+      );
+
+      const grossTotal =
+        toAmount(header.sales_gross_total) ||
+        totals.lines_gross_total;
+
+      return {
+        ...header,
+
+        taxable_total: totals.taxable_total,
+        tax_total:
+          toAmount(header.sales_tax_total) ||
+          totals.tax_total,
+        exempt_total: totals.exempt_total,
+        non_taxable_total:
+          totals.non_taxable_total,
+        out_of_scope_total:
+          totals.out_of_scope_total,
+        pass_through_total:
+          totals.pass_through_total,
+        gross_total: grossTotal,
+
+        payment_due_date:
+          header.payment_due_date ||
+          header.due_date ||
+          null
+      };
+    });
+
     res.json({
       ok: true,
-      rows: filteredHeaders
+      rows
     });
 
   } catch (err) {
     console.error('[invoice/list] error:', err);
-    res.status(500).json({ ok: false, error: err.message || String(err) });
+
+    res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
   }
 });
 app.get('/api/invoice/detail', async (req, res) => {
