@@ -2678,6 +2678,7 @@ supplier_add_2: supplier?.supplier_add_2 || '',
         vehicle_no,
         driver_name,
         driver_phone,
+        delivery_note,
         commodity_note,
         customer_ref_no,
         updated_at
@@ -3083,7 +3084,8 @@ const clean = (v) => {
         carrier_name: line.carrier_name || '',
         vehicle_no: line.vehicle_no || '',
         driver_name: line.driver_name || '',
-        driver_phone: line.driver_phone || ''
+        driver_phone: line.driver_phone || '',
+        delivery_note: line.delivery_note || ''
       };
 
       console.log('[save-shipment] linePayload:', linePayload);
