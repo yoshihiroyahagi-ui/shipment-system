@@ -436,7 +436,8 @@ const deliveryBlocksHtml = groupedLines.map((line, idx) => {
       line.delivery_address2 || '',
       line.delivery_tel ? 'TEL: ' + line.delivery_tel : '',
       line.delivery_contact ? '担当: ' + line.delivery_contact : '',
-      line.vehicle_type ? '車種: ' + line.vehicle_type : ''
+      line.vehicle_type ? '車種: ' + line.vehicle_type : '',
+      line.delivery_note ? '配送内容・備考: ' + line.delivery_note : ''
     ].filter(Boolean).join('\n'))}</td>
     <td class="small">${esc(allCommodities.join('\n'))}</td>
   </tr>
