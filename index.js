@@ -3039,6 +3039,34 @@ if (!isNew) {
 
       savedShipmentId = inserted.shipment_id;
       savedJobNo = inserted.job_no || '';
+
+      await insertShipmentActivity({
+  shipmentId: savedShipmentId,
+  customerCode:
+    shipmentPayload.customer_code || null,
+
+  actorType: 'ADMIN',
+  actorId: null,
+
+  activityType: 'SHIPMENT_CREATED',
+  title: '新しいShipmentが登録されました',
+  message:
+    `${savedJobNo || savedShipmentId} が新規登録されました。`,
+
+  afterData: {
+    shipment_id: savedShipmentId,
+    job_no: savedJobNo || null
+  },
+
+  // 顧客ポータルだけに表示
+  targetRoles: ['CUSTOMER'],
+
+  priority: 'LOW',
+
+  // 管理通知には出さない
+  isReadAdmin: true
+});
+
     } else {
       const { error: updateError } = await supabase
         .from('shipments')
