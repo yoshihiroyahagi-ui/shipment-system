@@ -2875,25 +2875,31 @@ app.post('/api/admin/save-shipment', async (req, res) => {
     ? req.body.shipment.containers
     : [];
     
-    const { data: existingShipment, error: existingShipmentError } =
-  await supabase
-    .from('shipments')
-    .select(`
-      shipment_id,
-      job_no,
-      customer_code,
-      etd,
-      eta,
-      vessel,
-      voyage,
-      customs_status,
-      status
-    `)
-    .eq('shipment_id', savedShipmentId)
-    .single();
+    let existingShipment = null;
 
-if (existingShipmentError) {
-  throw existingShipmentError;
+if (!isNew) {
+  const { data, error: existingShipmentError } =
+    await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        customer_code,
+        etd,
+        eta,
+        vessel,
+        voyage,
+        customs_status,
+        status
+      `)
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+
+  if (existingShipmentError) {
+    throw existingShipmentError;
+  }
+
+  existingShipment = data || null;
 }
     // まず shipments に実在する列だけ詰める
     const shipmentPayload = {
