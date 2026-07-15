@@ -2890,7 +2890,8 @@ if (!isNew) {
         vessel,
         voyage,
         customs_status,
-        status
+        status,
+        customer_message
       `)
       .eq('shipment_id', shipmentId)
       .maybeSingle();
@@ -3210,6 +3211,74 @@ if (statusChanges.changed) {
 
     targetRoles: ['CUSTOMER'],
     priority: 'LOW',
+    isReadAdmin: true
+  });
+}
+// =====================================================
+// 管理者コメント追加・更新
+// =====================================================
+const adminCommentChanges = buildActivityChanges(
+  existingShipment || {},
+  shipmentPayload || {},
+  ['customer_message']
+);
+
+if (adminCommentChanges.changed) {
+  const oldMessage =
+    String(existingShipment?.customer_message || '').trim();
+
+  const newMessage =
+    String(shipmentPayload?.customer_message || '').trim();
+
+  const isAdded =
+    !oldMessage && !!newMessage;
+
+  const isDeleted =
+    !!oldMessage && !newMessage;
+
+  await insertShipmentActivity({
+    shipmentId: savedShipmentId,
+
+    customerCode:
+      shipmentPayload.customer_code ||
+      existingShipment?.customer_code ||
+      null,
+
+    actorType: 'ADMIN',
+    actorId: null,
+
+    activityType:
+      isDeleted
+        ? 'ADMIN_COMMENT_DELETED'
+        : isAdded
+          ? 'ADMIN_COMMENT_ADDED'
+          : 'ADMIN_COMMENT_UPDATED',
+
+    title:
+      isDeleted
+        ? '管理者コメントが削除されました'
+        : isAdded
+          ? '管理者コメントが追加されました'
+          : '管理者コメントが更新されました',
+
+    message:
+      newMessage ||
+      '管理者コメントが削除されました。',
+
+    fieldName: 'customer_message',
+
+    beforeData: {
+      customer_message: oldMessage || null
+    },
+
+    afterData: {
+      customer_message: newMessage || null
+    },
+
+    targetRoles: ['CUSTOMER'],
+    priority: 'NORMAL',
+
+    // 管理側自身の操作なので管理側は既読扱い
     isReadAdmin: true
   });
 }
