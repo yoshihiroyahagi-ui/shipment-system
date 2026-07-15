@@ -428,6 +428,7 @@ async function insertShipmentActivity({
   afterData = null,
 
   targetRoles = [],
+  priority = 'NORMAL',
 
   fileName = null,
   fileUrl = null,
@@ -456,6 +457,13 @@ async function insertShipmentActivity({
 
     target_roles:
       Array.isArray(targetRoles) ? targetRoles : [],
+
+    priority:
+      ['HIGH', 'NORMAL', 'LOW'].includes(
+        String(priority || '').toUpperCase()
+      )
+        ? String(priority).toUpperCase()
+        : 'NORMAL',
 
     file_name: fileName,
     file_url: fileUrl,
@@ -2867,6 +2875,26 @@ app.post('/api/admin/save-shipment', async (req, res) => {
     ? req.body.shipment.containers
     : [];
     
+    const { data: existingShipment, error: existingShipmentError } =
+  await supabase
+    .from('shipments')
+    .select(`
+      shipment_id,
+      job_no,
+      customer_code,
+      etd,
+      eta,
+      vessel,
+      voyage,
+      customs_status,
+      status
+    `)
+    .eq('shipment_id', savedShipmentId)
+    .single();
+
+if (existingShipmentError) {
+  throw existingShipmentError;
+}
     // まず shipments に実在する列だけ詰める
     const shipmentPayload = {
       shipment_id: shipmentId || null, 
@@ -3013,6 +3041,145 @@ app.post('/api/admin/save-shipment', async (req, res) => {
 
       if (updateError) throw updateError;
 
+      // =====================================================
+// スケジュール変更：ETD / ETA
+// =====================================================
+const scheduleChanges = buildActivityChanges(
+  existingShipment || {},
+  shipmentPayload || {},
+  ['etd', 'eta']
+);
+
+if (scheduleChanges.changed) {
+  await insertShipmentActivity({
+    shipmentId: savedShipmentId,
+    customerCode:
+      shipmentPayload.customer_code ||
+      existingShipment?.customer_code ||
+      null,
+
+    actorType: 'ADMIN',
+    actorId: null,
+
+    activityType: 'SCHEDULE_UPDATED',
+    title: '本船スケジュールが更新されました',
+    message:
+      `${existingShipment?.job_no || savedJobNo || savedShipmentId} の` +
+      `ETD／ETAが更新されました。詳細画面を開いて確認してください。`,
+
+    fieldName: scheduleChanges.changedFields.join(','),
+    beforeData: scheduleChanges.beforeData,
+    afterData: scheduleChanges.afterData,
+
+    targetRoles: ['CUSTOMER'],
+    priority: 'HIGH',
+    isReadAdmin: true
+  });
+}
+// =====================================================
+// 本船変更：Vessel / Voyage
+// =====================================================
+const vesselChanges = buildActivityChanges(
+  existingShipment || {},
+  shipmentPayload || {},
+  ['vessel', 'voyage']
+);
+
+if (vesselChanges.changed) {
+  await insertShipmentActivity({
+    shipmentId: savedShipmentId,
+    customerCode:
+      shipmentPayload.customer_code ||
+      existingShipment?.customer_code ||
+      null,
+
+    actorType: 'ADMIN',
+    actorId: null,
+
+    activityType: 'VESSEL_UPDATED',
+    title: '本船情報が更新されました',
+    message:
+      `${existingShipment?.job_no || savedJobNo || savedShipmentId} の` +
+      `本船名／Voyageが更新されました。詳細画面を開いて確認してください。`,
+
+    fieldName: vesselChanges.changedFields.join(','),
+    beforeData: vesselChanges.beforeData,
+    afterData: vesselChanges.afterData,
+
+    targetRoles: ['CUSTOMER'],
+    priority: 'HIGH',
+    isReadAdmin: true
+  });
+}
+// =====================================================
+// 通関状況変更
+// =====================================================
+const customsChanges = buildActivityChanges(
+  existingShipment || {},
+  shipmentPayload || {},
+  ['customs_status']
+);
+
+if (customsChanges.changed) {
+  await insertShipmentActivity({
+    shipmentId: savedShipmentId,
+    customerCode:
+      shipmentPayload.customer_code ||
+      existingShipment?.customer_code ||
+      null,
+
+    actorType: 'ADMIN',
+
+    activityType: 'CUSTOMS_STATUS_UPDATED',
+    title: '通関状況が更新されました',
+    message:
+      `${existingShipment?.job_no || savedJobNo || savedShipmentId} の` +
+      `通関状況が更新されました。`,
+
+    fieldName: 'customs_status',
+    beforeData: customsChanges.beforeData,
+    afterData: customsChanges.afterData,
+
+    targetRoles: ['CUSTOMER'],
+    priority: 'LOW',
+    isReadAdmin: true
+  });
+}
+// =====================================================
+// Shipment Status変更
+// =====================================================
+const statusChanges = buildActivityChanges(
+  existingShipment || {},
+  shipmentPayload || {},
+  ['status']
+);
+
+if (statusChanges.changed) {
+  await insertShipmentActivity({
+    shipmentId: savedShipmentId,
+    customerCode:
+      shipmentPayload.customer_code ||
+      existingShipment?.customer_code ||
+      null,
+
+    actorType: 'ADMIN',
+
+    activityType: 'STATUS_UPDATED',
+    title: '案件ステータスが更新されました',
+    message:
+      `${existingShipment?.job_no || savedJobNo || savedShipmentId} の` +
+      `案件ステータスが更新されました。`,
+
+    fieldName: 'status',
+    beforeData: statusChanges.beforeData,
+    afterData: statusChanges.afterData,
+
+    targetRoles: ['CUSTOMER'],
+    priority: 'LOW',
+    isReadAdmin: true
+  });
+}
+
       const { data: updatedRow, error: readError } = await supabase
         .from('shipments')
         .select('shipment_id, job_no')
@@ -3020,6 +3187,8 @@ app.post('/api/admin/save-shipment', async (req, res) => {
         .maybeSingle();
 
       if (readError) throw readError;
+
+      
 
       savedJobNo = (updatedRow && updatedRow.job_no) || savedJobNo || '';
     }
@@ -3111,7 +3280,9 @@ if (Array.isArray(containers)) {
     carrier_name,
     vehicle_no,
     driver_name,
-    driver_phone
+    driver_phone,
+    delivery_fixed,
+    delivery_fixed_time
   `)
   .eq('shipment_id', savedShipmentId);
 
@@ -3247,10 +3418,51 @@ const clean = (v) => {
 
       targetRoles: ['CUSTOMER'],
 
+      priority: 'HIGH',
+
       // 管理側自身の操作なので管理通知は既読扱い
       isReadAdmin: true
     });
   }
+  // =====================================================
+// 配送日時変更
+// =====================================================
+const deliveryChanges = buildActivityChanges(
+  existingLine || {},
+  linePayload || {},
+  [
+    'delivery_fixed',
+    'delivery_fixed_time'
+  ]
+);
+
+if (deliveryChanges.changed) {
+  await insertShipmentActivity({
+    shipmentId: savedShipmentId,
+    lineId,
+    customerCode:
+      shipment.customer_code ||
+      line.customer_code ||
+      existingShipment?.customer_code ||
+      null,
+
+    actorType: 'ADMIN',
+
+    activityType: 'DELIVERY_DATETIME_UPDATED',
+    title: '配送日時が更新されました',
+    message:
+      `${savedJobNo || existingShipment?.job_no || savedShipmentId} の` +
+      `配送日／配送時間が更新されました。詳細画面を開いて確認してください。`,
+
+    fieldName: deliveryChanges.changedFields.join(','),
+    beforeData: deliveryChanges.beforeData,
+    afterData: deliveryChanges.afterData,
+
+    targetRoles: ['CUSTOMER'],
+    priority: 'HIGH',
+    isReadAdmin: true
+  });
+}
  } else {
         linePayload.line_id = `LIN-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -3519,57 +3731,107 @@ async function applyBiconFlagsAcrossRows(rows) {
 }
 app.post('/api/customer/save-comment', async (req, res) => {
   try {
-    const { session_id, shipment_id, customer_comment } = req.body;
+    const {
+      shipment_id,
+      customer_comment
+    } = req.body || {};
 
-    const session = await getSessionOrThrow(req);
+    const session =
+      await getSessionOrThrow(req);
 
-    const commentText = String(customer_comment || '').trim();
+    const customerCode =
+      String(session.customer_code || '').trim();
 
-    const { error } = await supabase
-      .from('shipments')
-      .update({
-        customer_comment: commentText
-      })
-      .eq('shipment_id', shipment_id)
-      .eq('customer_code', session.customer_code);
+    const newComment =
+      String(customer_comment || '').trim();
 
-    if (error) throw error;
+    const { data: existingShipment, error: selectError } =
+      await supabase
+        .from('shipments')
+        .select(`
+          shipment_id,
+          job_no,
+          customer_code,
+          customer_comment
+        `)
+        .eq('shipment_id', shipment_id)
+        .eq('customer_code', customerCode)
+        .single();
 
-    if (commentText) {
-      const activityId =
-        `ACT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-      const { error: activityError } = await supabase
-        .from('shipment_activities')
-        .insert({
-          activity_id: activityId,
-          shipment_id: shipment_id,
-          line_id: null,
-          customer_code: session.customer_code,
-
-          actor_type: 'CUSTOMER',
-          actor_id: session_id || null,
-          activity_type: 'CUSTOMER_COMMENT',
-
-          title: '顧客コメントが追加されました',
-          message: commentText,
-
-          is_read_admin: false
-        });
-
-      if (activityError) throw activityError;
+    if (selectError) throw selectError;
+    if (!existingShipment) {
+      throw new Error('shipment not found');
     }
 
-    res.json({ ok: true });
-  } catch (e) {
+    const oldComment =
+      String(existingShipment.customer_comment || '').trim();
+
+    const { error: updateError } =
+      await supabase
+        .from('shipments')
+        .update({
+          customer_comment: newComment
+        })
+        .eq('shipment_id', shipment_id)
+        .eq('customer_code', customerCode);
+
+    if (updateError) throw updateError;
+
+    if (oldComment !== newComment) {
+      const isAdded =
+        !oldComment && !!newComment;
+
+      await insertShipmentActivity({
+        shipmentId: shipment_id,
+        customerCode,
+
+        actorType: 'CUSTOMER',
+        actorId: session.session_id || null,
+
+        activityType:
+          isAdded
+            ? 'CUSTOMER_COMMENT_ADDED'
+            : 'CUSTOMER_COMMENT_UPDATED',
+
+        title:
+          isAdded
+            ? '顧客コメントが追加されました'
+            : '顧客コメントが更新されました',
+
+        message:
+          newComment ||
+          '顧客コメントが削除されました。',
+
+        fieldName: 'customer_comment',
+
+        beforeData: {
+          customer_comment: oldComment || null
+        },
+
+        afterData: {
+          customer_comment: newComment || null
+        },
+
+        // 管理者向け通知
+        targetRoles: ['ADMIN', 'CUSTOMER'],
+        priority: 'NORMAL',
+        isReadAdmin: false
+      });
+    }
+
+    return res.json({
+      ok: true
+    });
+
+  } catch (err) {
     console.error(
-      'POST /api/customer/save-comment error:',
-      e
+      '[customer save-comment] error:',
+      err
     );
 
-    res.status(400).json({
+    return res.status(400).json({
       ok: false,
-      error: e.message
+      error: err.message || String(err)
     });
   }
 });
@@ -5987,7 +6249,7 @@ app.post('/api/admin/customs/drive-result', async (req, res) => {
 });
 app.post('/api/customer/upload-docs', async (req, res) => {
   try {
-    const { shipment_id, files, session_id } = req.body || {};
+    const { shipment_id, files } = req.body || {};
 
     if (!shipment_id) {
       throw new Error('shipment_id is required');
@@ -5999,6 +6261,9 @@ app.post('/api/customer/upload-docs', async (req, res) => {
 
     // 顧客セッション確認
     const session = await getSessionOrThrow(req);
+
+    const customerCode =
+      String(session.customer_code || '').trim();
 
     // ログイン顧客の案件だけ取得
     const { data: shipment, error: sErr } = await supabase
@@ -6075,6 +6340,61 @@ app.post('/api/customer/upload-docs', async (req, res) => {
       .eq('customer_code', session.customer_code);
 
     if (uErr) throw uErr;
+
+    for (const [type, url] of Object.entries(savedDocs)) {
+  const oldUrl =
+    existingDocs[type] || null;
+
+  const isReplace =
+    !!oldUrl && oldUrl !== url;
+
+  // 同じURLなら履歴を増やさない
+  if (oldUrl === url) continue;
+
+  await insertShipmentActivity({
+    shipmentId: shipment_id,
+    customerCode:
+      shipment.customer_code ||
+      session.customer_code ||
+      null,
+
+    actorType: 'CUSTOMER',
+    actorId: session.session_id || null,
+
+    activityType:
+      isReplace
+        ? 'CUSTOMER_DOCUMENT_REPLACED'
+        : 'CUSTOMER_DOCUMENT_ADDED',
+
+    title:
+      isReplace
+        ? '顧客書類が差し替えられました'
+        : '顧客書類がアップロードされました',
+
+    message:
+      `${shipment.job_no || shipment_id}：${type}`,
+
+    fieldName: type,
+
+    beforeData: {
+      document_type: type,
+      file_url: oldUrl
+    },
+
+    afterData: {
+      document_type: type,
+      file_url: url
+    },
+
+    targetRoles: ['ADMIN', 'CUSTOMER'],
+    priority: 'NORMAL',
+
+    fileName: type,
+    fileUrl: url,
+
+    isReadAdmin: false
+  });
+}
 
     // アップロードされた書類ごとにactivity登録
     const activityRows = savedFileRecords.map((file, index) => ({
