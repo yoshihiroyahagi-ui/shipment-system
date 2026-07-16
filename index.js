@@ -7564,7 +7564,7 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
   payable_tax_type,
   payable_tax_amount,
   payable_amount_gross,
-  currency,
+  payable_currency,
   foreign_unit_price,
   foreign_amount_net,
   status,
@@ -7648,7 +7648,7 @@ if (vendorIds.length > 0) {
 
   payable_item_name: p.payable_item_name || '',
 
-  currency: String(p.currency || '').trim().toUpperCase(),
+  currency: String(p.payable_currency || '').trim().toUpperCase(),
   foreign_unit_price: Number(p.foreign_unit_price || 0),
   foreign_amount_net: Number(p.foreign_amount_net || 0),
 
@@ -7703,7 +7703,7 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
   payable_tax_type,
   payable_tax_amount,
   payable_amount_gross,
-  currency,
+  payable_currency,
   foreign_amount_net,
   status,
   payment_due_date,
@@ -7778,7 +7778,7 @@ const partnerMap = new Map(
         const gross = Number(p.payable_amount_gross || 0);  
         const taxType = p.payable_tax_type || 'taxable';
 
-        const currency = String(p.currency || '').trim().toUpperCase();
+        const currency = String(p.payable_currency || '').trim().toUpperCase();
         const foreignAmount = Number(p.foreign_amount_net || 0);
 
         const partner =
