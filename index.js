@@ -1403,6 +1403,10 @@ app.post('/api/invoice/save', async (req, res) => {
       null,
 
     vendor_id: p.vendor_id || null,
+    partner_group_id:
+  p.partner_group_id ||
+  p.vendor_id ||
+  null,
     vendor_name: p.vendor_name || null,
     payable_item_name:
       p.payable_item_name ||
