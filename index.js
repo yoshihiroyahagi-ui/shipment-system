@@ -1322,10 +1322,10 @@ app.post('/api/invoice/save', async (req, res) => {
 
         currency: line.currency || 'JPY',
         foreign_unit_price:
-  line.foreign_unit_price === '' ||
-  line.foreign_unit_price == null
-    ? null
-    : round2(line.foreign_unit_price),
+          line.foreign_unit_price === '' ||
+          line.foreign_unit_price == null
+            ? null
+            : round2(line.foreign_unit_price),
         exchange_rate: line.exchange_rate || null,
         line_note: line.line_note || null,
 
@@ -7859,31 +7859,6 @@ if (
       map[vendor].foreign_totals[currency] || 0
     ) + foreignAmount;
 }
-
-        const currency = String(p.payable_currency || '').trim().toUpperCase();
-        const foreignAmount = Number(p.foreign_amount_net || 0);
-
-        const partner =
-  partnerMap.get(
-    String(p.vendor_id || '').trim()
-  );
-
-const partnerType =
-  partner?.partner_type || '';
-
-const partnerGroupId =
-  partner?.partner_group_id || '';
-
-        if (
-          p.partner_type === 'OVERSEAS_VENDOR' &&
-          currency &&
-          currency !== 'JPY' &&
-          foreignAmount !== 0
-        ) {
-          map[vendor].foreign_totals[currency] =
-            Number(map[vendor].foreign_totals[currency] || 0) +
-            foreignAmount;
-        }
 
         if (p.payment_due_date && !map[vendor].payment_due_dates.includes(p.payment_due_date)) {
           map[vendor].payment_due_dates.push(p.payment_due_date);
