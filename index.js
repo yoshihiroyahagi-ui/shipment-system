@@ -7558,11 +7558,15 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
         payable_lines (
           payable_id,
           vendor_name,
+          partner_type,
           payable_item_name,
           payable_amount_net,
           payable_tax_type,
           payable_tax_amount,
           payable_amount_gross,
+          currency,
+          foreign_unit_price,
+          foreign_amount_net,
           status,
           payment_due_date,
           payment_date,
@@ -7602,6 +7606,9 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
       customer_name: h.customer_name || '',
       project_name: h.free_title || h.cargo_summary || '',
       payable_item_name: p.payable_item_name || '',
+      currency: p.currency || '',
+      foreign_unit_price: Number(p.foreign_unit_price || 0),
+      foreign_amount_net: Number(p.foreign_amount_net || 0),
       payable_amount_net: Number(p.payable_amount_net || 0),
       payable_tax_type: p.payable_tax_type || '',
       payable_tax_amount: Number(p.payable_tax_amount || 0),
@@ -7647,10 +7654,14 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
         billing_month,
         payable_lines (
           vendor_name,
+          partner_type,
           payable_amount_net,
           payable_tax_type,
           payable_tax_amount,
           payable_amount_gross,
+          currency,
+          foreign_unit_price,
+          foreign_amount_net,
           status,
           payment_due_date,
           payment_date
@@ -7684,6 +7695,7 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
             out_of_scope: 0,
             advance_payment: 0,
             payable_amount_gross: 0,
+            foreign_totals: {},
             line_count: 0,
             paid_count: 0,
             unpaid_count: 0
@@ -7692,8 +7704,22 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
 
         const net = Number(p.payable_amount_net || 0);
         const tax = Number(p.payable_tax_amount || 0);
-        const gross = Number(p.payable_amount_gross || 0);
+        const gross = Number(p.payable_amount_gross || 0);  
         const taxType = p.payable_tax_type || 'taxable';
+
+        const currency = String(p.currency || '').trim().toUpperCase();
+        const foreignAmount = Number(p.foreign_amount_net || 0);
+
+        if (
+          p.partner_type === 'OVERSEAS_VENDOR' &&
+          currency &&
+          currency !== 'JPY' &&
+          foreignAmount !== 0
+        ) {
+          map[vendor].foreign_totals[currency] =
+            Number(map[vendor].foreign_totals[currency] || 0) +
+            foreignAmount;
+        }
 
         if (p.payment_due_date && !map[vendor].payment_due_dates.includes(p.payment_due_date)) {
           map[vendor].payment_due_dates.push(p.payment_due_date);
