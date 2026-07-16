@@ -7696,7 +7696,7 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
       .select(`
         invoice_id,
         billing_month,
-        ppayable_lines (
+        payable_lines (
   vendor_id,
   vendor_name,
   payable_amount_net,
