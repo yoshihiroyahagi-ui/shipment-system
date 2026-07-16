@@ -7556,29 +7556,61 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
         free_title,
         cargo_summary,
         payable_lines (
-          payable_id,
-          vendor_name,
-          partner_type,
-          payable_item_name,
-          payable_amount_net,
-          payable_tax_type,
-          payable_tax_amount,
-          payable_amount_gross,
-          currency,
-          foreign_unit_price,
-          foreign_amount_net,
-          status,
-          payment_due_date,
-          payment_date,
-          vendor_invoice_no,
-          memo
-        )
+  payable_id,
+  vendor_id,
+  vendor_name,
+  payable_item_name,
+  payable_amount_net,
+  payable_tax_type,
+  payable_tax_amount,
+  payable_amount_gross,
+  currency,
+  foreign_unit_price,
+  foreign_amount_net,
+  status,
+  payment_due_date,
+  payment_date,
+  vendor_invoice_no,
+  memo
+)
       `)
       .order('billing_month', { ascending: true });
 
     const { data: headers, error } = await query;
 
     if (error) throw error;
+
+    const vendorIds = [
+  ...new Set(
+    (headers || [])
+      .flatMap(h => h.payable_lines || [])
+      .map(p => String(p.vendor_id || '').trim())
+      .filter(Boolean)
+  )
+];
+
+let partnerMap = new Map();
+
+if (vendorIds.length > 0) {
+  const { data: partners, error: partnerError } =
+    await supabase
+      .from('partners')
+      .select(`
+        partner_code,
+        partner_group_id,
+        partner_type
+      `)
+      .in('partner_code', vendorIds);
+
+  if (partnerError) throw partnerError;
+
+  partnerMap = new Map(
+    (partners || []).map(p => [
+      String(p.partner_code || '').trim(),
+      p
+    ])
+  );
+}
 
     const rows = [];
 
@@ -7594,28 +7626,40 @@ app.get('/api/invoice/analysis/vendor-detail', async (req, res) => {
       }
     }
 
+    const partner =
+  partnerMap.get(String(p.vendor_id || '').trim()) || null;
+
     rows.push({
-      billing_month: h.billing_month || '',
-      payment_month: paymentDate.slice(0, 7),
-      vendor_name: p.vendor_name || '未設定',
-      payment_due_date: p.payment_due_date || '',
-      payment_date: p.payment_date || '',
-      status: p.status || '',
-      invoice_no: h.invoice_no || '',
-      job_no: h.job_no || '',
-      customer_name: h.customer_name || '',
-      project_name: h.free_title || h.cargo_summary || '',
-      payable_item_name: p.payable_item_name || '',
-      currency: p.currency || '',
-      foreign_unit_price: Number(p.foreign_unit_price || 0),
-      foreign_amount_net: Number(p.foreign_amount_net || 0),
-      payable_amount_net: Number(p.payable_amount_net || 0),
-      payable_tax_type: p.payable_tax_type || '',
-      payable_tax_amount: Number(p.payable_tax_amount || 0),
-      payable_amount_gross: Number(p.payable_amount_gross || 0),
-      vendor_invoice_no: p.vendor_invoice_no || '',
-      memo: p.memo || ''
-    });
+  billing_month: h.billing_month || '',
+  payment_month: paymentDate.slice(0, 7),
+
+  vendor_id: p.vendor_id || '',
+  vendor_name: p.vendor_name || '未設定',
+  partner_group_id: partner?.partner_group_id || '',
+  partner_type: partner?.partner_type || '',
+  payment_due_date: p.payment_due_date || '',
+  payment_date: p.payment_date || '',
+  status: p.status || '',
+
+  invoice_no: h.invoice_no || '',
+  job_no: h.job_no || '',
+  customer_name: h.customer_name || '',
+  project_name: h.free_title || h.cargo_summary || '',
+
+  payable_item_name: p.payable_item_name || '',
+
+  currency: String(p.currency || '').trim().toUpperCase(),
+  foreign_unit_price: Number(p.foreign_unit_price || 0),
+  foreign_amount_net: Number(p.foreign_amount_net || 0),
+
+  payable_amount_net: Number(p.payable_amount_net || 0),
+  payable_tax_type: p.payable_tax_type || '',
+  payable_tax_amount: Number(p.payable_tax_amount || 0),
+  payable_amount_gross: Number(p.payable_amount_gross || 0),
+
+  vendor_invoice_no: p.vendor_invoice_no || '',
+  memo: p.memo || ''
+});
   });
 });
 
@@ -7652,23 +7696,50 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
       .select(`
         invoice_id,
         billing_month,
-        payable_lines (
-          vendor_name,
-          partner_type,
-          payable_amount_net,
-          payable_tax_type,
-          payable_tax_amount,
-          payable_amount_gross,
-          currency,
-          foreign_unit_price,
-          foreign_amount_net,
-          status,
-          payment_due_date,
-          payment_date
-        )
+        ppayable_lines (
+  vendor_id,
+  vendor_name,
+  payable_amount_net,
+  payable_tax_type,
+  payable_tax_amount,
+  payable_amount_gross,
+  currency,
+  foreign_amount_net,
+  status,
+  payment_due_date,
+  payment_date
+)
       `);
 
     if (error) throw error;
+
+    const vendorIds = [
+  ...new Set(
+    (headers || [])
+      .flatMap(h => h.payable_lines || [])
+      .map(p => String(p.vendor_id || '').trim())
+      .filter(Boolean)
+  )
+];
+
+const { data: partners, error: partnerError } =
+  await supabase
+    .from('partners')
+    .select(`
+      partner_code,
+      partner_group_id,
+      partner_type
+    `)
+    .in('partner_code', vendorIds);
+
+if (partnerError) throw partnerError;
+
+const partnerMap = new Map(
+  (partners || []).map(p => [
+    p.partner_code,
+    p
+  ])
+);
 
     const map = {};
 
@@ -7709,6 +7780,17 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
 
         const currency = String(p.currency || '').trim().toUpperCase();
         const foreignAmount = Number(p.foreign_amount_net || 0);
+
+        const partner =
+  partnerMap.get(
+    String(p.vendor_id || '').trim()
+  );
+
+const partnerType =
+  partner?.partner_type || '';
+
+const partnerGroupId =
+  partner?.partner_group_id || '';
 
         if (
           p.partner_type === 'OVERSEAS_VENDOR' &&
