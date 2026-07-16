@@ -7756,7 +7756,7 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
         invoice_id,
         billing_month,
         payable_lines (
-  vendor_id,
+  partner_group_id,
   vendor_name,
   payable_amount_net,
   payable_tax_type,
@@ -7772,33 +7772,59 @@ app.get('/api/invoice/analysis/vendor-summary', async (req, res) => {
 
     if (error) throw error;
 
-    const vendorIds = [
+    const partnerGroupIds = [
   ...new Set(
     (headers || [])
       .flatMap(h => h.payable_lines || [])
-      .map(p => String(p.vendor_id || '').trim())
+      .map(p =>
+        String(p.partner_group_id || '').trim()
+      )
       .filter(Boolean)
   )
 ];
 
-const { data: partners, error: partnerError } =
-  await supabase
+let partners = [];
+
+if (partnerGroupIds.length > 0) {
+  const {
+    data: partnerData,
+    error: partnerError
+  } = await supabase
     .from('partners')
     .select(`
-      partner_code,
       partner_group_id,
       partner_type
     `)
-    .in('partner_code', vendorIds);
+    .in('partner_group_id', partnerGroupIds);
+
+  if (partnerError) throw partnerError;
+
+  partners = partnerData || [];
+}
 
 if (partnerError) throw partnerError;
 
-const partnerMap = new Map(
-  (partners || []).map(p => [
-    p.partner_code,
-    p
-  ])
-);
+const partnerGroupTypeMap = new Map();
+
+(partners || []).forEach(function(p) {
+  const groupId =
+    String(p.partner_group_id || '').trim();
+
+  const partnerType =
+    String(p.partner_type || '').trim();
+
+  if (!groupId) return;
+
+  if (!partnerGroupTypeMap.has(groupId)) {
+    partnerGroupTypeMap.set(groupId, new Set());
+  }
+
+  if (partnerType) {
+    partnerGroupTypeMap
+      .get(groupId)
+      .add(partnerType);
+  }
+});
 
     const map = {};
 
@@ -7836,13 +7862,15 @@ const partnerMap = new Map(
         const tax = Number(p.payable_tax_amount || 0);
         const gross = Number(p.payable_amount_gross || 0);  
         const taxType = p.payable_tax_type || 'taxable';
-        const partner =
-  partnerMap.get(
-    String(p.vendor_id || '').trim()
-  ) || null;
+        const partnerGroupId =
+  String(p.partner_group_id || '').trim();
 
-const partnerType =
-  partner?.partner_type || '';
+const partnerTypes =
+  partnerGroupTypeMap.get(partnerGroupId) ||
+  new Set();
+
+const isOverseasVendor =
+  partnerTypes.has('OVERSEAS_VENDOR');
 
 const currency =
   String(p.payable_currency || '')
@@ -7853,7 +7881,7 @@ const foreignAmount =
   Number(p.foreign_amount_net || 0);
 
 if (
-  partnerType === 'OVERSEAS_VENDOR' &&
+  isOverseasVendor &&
   currency &&
   currency !== 'JPY' &&
   foreignAmount !== 0
