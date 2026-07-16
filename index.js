@@ -7802,8 +7802,6 @@ if (partnerGroupIds.length > 0) {
   partners = partnerData || [];
 }
 
-if (partnerError) throw partnerError;
-
 const partnerGroupTypeMap = new Map();
 
 (partners || []).forEach(function(p) {
