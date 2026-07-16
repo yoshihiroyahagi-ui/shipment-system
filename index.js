@@ -1290,7 +1290,12 @@ app.post('/api/invoice/save', async (req, res) => {
     if (!invoice_id) {
       return res.status(400).json({ ok: false, error: 'invoice_id is required' });
     }
+    const round2 = (value) => {
+  const n = toNumber(value);
+  if (!Number.isFinite(n)) return 0;
 
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+};
     const normalizedLines = lines.map((line, idx) => {
       const billingTaxType = line.billing_tax_type || 'taxable';
       const billingTaxRate = billingTaxType === 'taxable'
@@ -1316,7 +1321,11 @@ app.post('/api/invoice/save', async (req, res) => {
         billing_amount_gross: c.gross,
 
         currency: line.currency || 'JPY',
-        foreign_unit_price: line.foreign_unit_price || null,
+        foreign_unit_price:
+  line.foreign_unit_price === '' ||
+  line.foreign_unit_price == null
+    ? null
+    : round2(line.foreign_unit_price),
         exchange_rate: line.exchange_rate || null,
         line_note: line.line_note || null,
 
@@ -1356,46 +1365,92 @@ app.post('/api/invoice/save', async (req, res) => {
     );
 
     const normalizedPayables = payables.map((p) => {
-      const payableTaxType = p.payable_tax_type || 'taxable';
-      const payableTaxRate = payableTaxType === 'taxable'
-        ? toNumber(p.payable_tax_rate || 0.1)
-        : 0;
+  const payableTaxType = p.payable_tax_type || 'taxable';
 
-      const c = calcTax(p.payable_amount_net, payableTaxType, payableTaxRate);
+  const payableTaxRate = payableTaxType === 'taxable'
+    ? toNumber(p.payable_tax_rate || 0.1)
+    : 0;
 
-      return {
-        invoice_id,
-        invoice_line_id:
-          p.invoice_line_id ||
-          lineNoToId.get(Number(p.line_no)) ||
-          null,
+  const c = calcTax(
+    p.payable_amount_net,
+    payableTaxType,
+    payableTaxRate
+  );
 
-        vendor_id: p.vendor_id || null,
-        vendor_name: p.vendor_name || null,
-        payable_item_name: p.payable_item_name || p.item_name || null,
+  const quantity = toNumber(p.quantity || 1);
 
-        quantity: toNumber(p.quantity || 1),
-        quantity_unit: p.quantity_unit || null,
+  const foreignUnitPrice =
+    p.foreign_unit_price === '' ||
+    p.foreign_unit_price === null ||
+    p.foreign_unit_price === undefined
+      ? null
+      : round2(p.foreign_unit_price);
 
-        payable_amount_net: c.net,
-        payable_tax_type: payableTaxType,
-        payable_tax_rate: payableTaxRate,
-        payable_tax_amount: c.tax,
-        payable_amount_gross: c.gross,
+  const foreignAmountNet =
+    p.foreign_amount_net !== '' &&
+    p.foreign_amount_net !== null &&
+    p.foreign_amount_net !== undefined
+      ? round2(p.foreign_amount_net)
+      : foreignUnitPrice !== null
+        ? round2(foreignUnitPrice * quantity)
+        : null;
 
-        payable_currency: p.payable_currency || p.currency || 'JPY',
-        foreign_unit_price: p.foreign_unit_price || null,
-        exchange_rate: p.exchange_rate || null,
-        line_note: p.line_note || null,
+  return {
+    invoice_id,
+    invoice_line_id:
+      p.invoice_line_id ||
+      lineNoToId.get(Number(p.line_no)) ||
+      null,
 
-        vendor_invoice_no: p.vendor_invoice_no || null,
-        payment_date: p.payment_date || null,
+    vendor_id: p.vendor_id || null,
+    vendor_name: p.vendor_name || null,
+    payable_item_name:
+      p.payable_item_name ||
+      p.item_name ||
+      null,
 
-        status: p.status || 'planned',
-        payment_due_date: p.payment_due_date || null,
-        memo: p.memo || null
-      };
-    });
+    quantity,
+    quantity_unit: p.quantity_unit || null,
+
+    payable_amount_net: c.net,
+    payable_tax_type: payableTaxType,
+    payable_tax_rate: payableTaxRate,
+    payable_tax_amount: c.tax,
+    payable_amount_gross: c.gross,
+
+    payable_currency:
+      p.payable_currency ||
+      p.currency ||
+      'JPY',
+
+    foreign_unit_price: foreignUnitPrice,
+    foreign_amount_net: foreignAmountNet,
+
+    exchange_rate:
+      p.exchange_rate === '' ||
+      p.exchange_rate === null ||
+      p.exchange_rate === undefined
+        ? null
+        : toNumber(p.exchange_rate),
+
+    line_note: p.line_note || null,
+
+    vendor_invoice_no:
+      p.vendor_invoice_no || null,
+
+    payment_date:
+      p.payment_date || null,
+
+    status:
+      p.status || 'planned',
+
+    payment_due_date:
+      p.payment_due_date || null,
+
+    memo:
+      p.memo || null
+  };
+});
 
     let insertedPayables = [];
 
@@ -7777,6 +7832,33 @@ const partnerMap = new Map(
         const tax = Number(p.payable_tax_amount || 0);
         const gross = Number(p.payable_amount_gross || 0);  
         const taxType = p.payable_tax_type || 'taxable';
+        const partner =
+  partnerMap.get(
+    String(p.vendor_id || '').trim()
+  ) || null;
+
+const partnerType =
+  partner?.partner_type || '';
+
+const currency =
+  String(p.payable_currency || '')
+    .trim()
+    .toUpperCase();
+
+const foreignAmount =
+  Number(p.foreign_amount_net || 0);
+
+if (
+  partnerType === 'OVERSEAS_VENDOR' &&
+  currency &&
+  currency !== 'JPY' &&
+  foreignAmount !== 0
+) {
+  map[vendor].foreign_totals[currency] =
+    Number(
+      map[vendor].foreign_totals[currency] || 0
+    ) + foreignAmount;
+}
 
         const currency = String(p.payable_currency || '').trim().toUpperCase();
         const foreignAmount = Number(p.foreign_amount_net || 0);
@@ -7837,6 +7919,15 @@ const partnerGroupId =
 
     const rows = Object.values(map).map(function(row) {
       row.payment_due_dates = row.payment_due_dates.sort().join(' / ');
+      row.foreign_totals_text =
+      Object.entries(row.foreign_totals || {})
+        .map(([currency, amount]) =>
+          `${currency} ${Number(amount).toLocaleString('ja-JP', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })}`
+        )
+        .join(' / ');
       return row;
     }).sort(function(a, b) {
       return b.payable_amount_gross - a.payable_amount_gross;
