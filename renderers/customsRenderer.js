@@ -142,11 +142,12 @@ const totalUnit =
   )?.qty_unit ||
   '';
 
-const totalGw =
+const totalGw = Number((
   toNumLoose(totals.gw_kg) ||
   containers.reduce((sum, c) => {
     return sum + toNumLoose(c.gw_kg || c.gw);
-  }, 0);
+  }, 0)
+).toFixed(3));
 
 const totalCbm = Number((
   toNumLoose(totals.cbm) ||

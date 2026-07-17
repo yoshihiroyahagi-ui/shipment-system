@@ -180,7 +180,7 @@ const totalWgt =
   totals.gw_kg
     ? `${Number(totals.gw_kg).toFixed(1)}KGS`
     : totalGw
-      ? `${totalGw.toFixed(1)}KGS`
+      ? `${totalGw.toFixed(3)}KGS`
       : '';
 
   const totalM3 =
