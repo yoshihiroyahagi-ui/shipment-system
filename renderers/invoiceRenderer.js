@@ -731,7 +731,7 @@ tbody tr.blank td{
     <strong>お振込先</strong><br>
     三井住友銀行　日本橋東支店　普通 7828377　ｶ)ﾋﾞｼﾞﾈｽﾗﾎﾞ    ※振込手数料は貴社にてご負担をお願いいたします。
    <div class="note">
-    備考：本請求書はinvoice_headers / invoice_lines のデータを正本として作成しています。
+    備考：請求に御不明な点が御座いましたらaccount@bizlabo-tokyo.co.jpまでお問い合わせ下さい。
   </div>
 </div>
 </section>
