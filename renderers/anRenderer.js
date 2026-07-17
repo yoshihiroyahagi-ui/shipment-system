@@ -170,10 +170,17 @@ if (pcsVal || unitVal) {
 
     const totalPkgs = buildTotalPkgs(containers);
 
-  const totalWgt = totals.gw_kg
-    ? `${totals.gw_kg}KGS`
-    : containers.reduce((sum, c) => sum + Number(c.gw_kg || 0), 0)
-      ? `${containers.reduce((sum, c) => sum + Number(c.gw_kg || 0), 0)}KGS`
+  const totalGw =
+  containers.reduce(
+    (sum, c) => sum + Number(c.gw_kg || 0),
+    0
+  );
+
+const totalWgt =
+  totals.gw_kg
+    ? `${Number(totals.gw_kg).toFixed(1)}KGS`
+    : totalGw
+      ? `${totalGw.toFixed(1)}KGS`
       : '';
 
   const totalM3 =
