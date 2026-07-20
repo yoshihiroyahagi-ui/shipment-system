@@ -600,7 +600,140 @@ app.use((req, res, next) => {
   }
   next();
 });
+// =========================================================
+// Shared Delivery Portal：共有URL発行
+// POST /api/admin/shared-delivery/create
+// =========================================================
+app.post('/api/admin/shared-delivery/create', async (req, res) => {
+  try {
+    const {
+      shipment_id,
+      delivery_ref,
+      share_name,
+      recipient_type,
+      recipient_name,
+      recipient_contact_name,
+      recipient_email,
+      expires_at
+    } = req.body || {};
 
+    const shipmentId = String(shipment_id || '').trim();
+    const recipientEmail = String(recipient_email || '').trim();
+
+    if (!shipmentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'shipment_id は必須です'
+      });
+    }
+
+    if (!recipientEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'recipient_email は必須です'
+      });
+    }
+
+    // Shipment存在確認
+    const { data: shipment, error: shipmentError } = await supabase
+      .from('shipments')
+      .select('shipment_id, job_no')
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+
+    if (shipmentError) {
+      throw shipmentError;
+    }
+
+    if (!shipment) {
+      return res.status(404).json({
+        success: false,
+        message: '対象Shipmentが見つかりません'
+      });
+    }
+
+    // URLに使用する生トークン
+    const shareToken = crypto.randomBytes(32).toString('hex');
+
+    // DBにはハッシュのみ保存
+    const shareTokenHash = crypto
+      .createHash('sha256')
+      .update(shareToken)
+      .digest('hex');
+
+    const tokenHint = shareToken.slice(-8);
+
+    const insertRow = {
+      shipment_id: shipmentId,
+      delivery_ref: String(delivery_ref || '').trim() || null,
+      share_name:
+        String(share_name || '').trim() ||
+        `${shipment.job_no || shipmentId} 納品共有`,
+      recipient_type:
+        String(recipient_type || '').trim() ||
+        'warehouse',
+      recipient_name:
+        String(recipient_name || '').trim() || null,
+      recipient_contact_name:
+        String(recipient_contact_name || '').trim() || null,
+      recipient_email: recipientEmail,
+      share_token_hash: shareTokenHash,
+      share_token_hint: tokenHint,
+      expires_at: expires_at || null,
+      is_active: true,
+      created_by: 'admin'
+    };
+
+    const { data: share, error: insertError } = await supabase
+      .from('shipment_delivery_shares')
+      .insert(insertRow)
+      .select(`
+        share_id,
+        shipment_id,
+        delivery_ref,
+        share_name,
+        recipient_type,
+        recipient_name,
+        recipient_contact_name,
+        recipient_email,
+        expires_at,
+        is_active,
+        created_at
+      `)
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    const baseUrl =
+      process.env.PUBLIC_BASE_URL ||
+      'https://portal.bizlabo-tokyo.com';
+
+    const shareUrl =
+      `${baseUrl}/shared-delivery.html?token=${encodeURIComponent(shareToken)}`;
+
+    return res.json({
+      success: true,
+      message: '共有URLを発行しました',
+      share: {
+        ...share,
+        share_url: shareUrl
+      }
+    });
+
+  } catch (err) {
+    console.error(
+      'POST /api/admin/shared-delivery/create error:',
+      err
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: err.message || '共有URLの発行に失敗しました'
+    });
+  }
+});
 app.post('/api/invoice/create-from-shipment', async (req, res) => {
   try {
     const { shipment_id } = req.body || {};
