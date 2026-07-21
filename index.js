@@ -33,6 +33,12 @@ app.use(cors({
 }));
 
 app.use(
+  express.static(
+    path.join(process.cwd(), 'public')
+  )
+);
+
+app.use(
   '/assets',
   express.static(
     path.join(process.cwd(), 'public/assets')
@@ -731,6 +737,631 @@ app.post('/api/admin/shared-delivery/create', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: err.message || '共有URLの発行に失敗しました'
+    });
+  }
+});
+// =========================================================
+// Shared Delivery Portal：公開情報取得
+// GET /api/shared-delivery/detail?token=xxxx
+// =========================================================
+app.get('/api/shared-delivery/detail', async (req, res) => {
+  try {
+    const shareToken = String(req.query.token || '').trim();
+
+    if (!shareToken) {
+      return res.status(400).json({
+        success: false,
+        message: '共有トークンがありません'
+      });
+    }
+
+    // URLで受け取った生トークンをハッシュ化
+    const shareTokenHash = crypto
+      .createHash('sha256')
+      .update(shareToken)
+      .digest('hex');
+
+    // 共有情報を取得
+    const { data: share, error: shareError } = await supabase
+      .from('shipment_delivery_shares')
+      .select(`
+        share_id,
+        shipment_id,
+        delivery_ref,
+        share_name,
+        recipient_type,
+        recipient_name,
+        recipient_contact_name,
+        recipient_email,
+        is_active,
+        expires_at,
+        first_viewed_at,
+        last_viewed_at,
+        view_count,
+        created_at
+      `)
+      .eq('share_token_hash', shareTokenHash)
+      .maybeSingle();
+
+    if (shareError) {
+      throw shareError;
+    }
+
+    if (!share) {
+      return res.status(404).json({
+        success: false,
+        message: '共有情報が見つかりません'
+      });
+    }
+
+    if (!share.is_active) {
+      return res.status(403).json({
+        success: false,
+        message: 'この共有URLは無効になっています'
+      });
+    }
+
+    if (
+      share.expires_at &&
+      new Date(share.expires_at).getTime() < Date.now()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'この共有URLの有効期限は終了しています'
+      });
+    }
+
+    // Shipmentを取得
+    // いったん全項目を取得し、返却時に外部公開項目だけへ絞る
+    // =========================================================
+// Shipment本体
+// =========================================================
+const { data: shipment, error: shipmentError } = await supabase
+  .from('shipments')
+  .select(`
+    shipment_id,
+    job_no,
+    status,
+    etd,
+    eta,
+    vessel,
+    voyage,
+    pol,
+    pod,
+    customs_declared_date,
+    default_customs_declared_date,
+    customs_data,
+    delivery_data,
+    earliest_delivery_date,
+    vehicle_type,
+    vehicle_no,
+    carrier_name,
+    driver_name,
+    driver_phone,
+    container_no_1, container_type_1, seal_no_1, pcs_1, gw_kg_1, cbm_1,
+container_no_2, container_type_2, seal_no_2, pcs_2, gw_kg_2, cbm_2,
+container_no_3, container_type_3, seal_no_3, pcs_3, gw_kg_3, cbm_3,
+container_no_4, container_type_4, seal_no_4, pcs_4, gw_kg_4, cbm_4,
+container_no_5, container_type_5, seal_no_5, pcs_5, gw_kg_5, cbm_5,
+container_no_6, container_type_6, seal_no_6, pcs_6, gw_kg_6, cbm_6,
+container_no_7, container_type_7, seal_no_7, pcs_7, gw_kg_7, cbm_7,
+container_no_8, container_type_8, seal_no_8, pcs_8, gw_kg_8, cbm_8,
+container_no_9, container_type_9, seal_no_9, pcs_9, gw_kg_9, cbm_9,
+container_no_10, container_type_10, seal_no_10, pcs_10, gw_kg_10, cbm_10
+  `)
+  .eq('shipment_id', share.shipment_id)
+  .maybeSingle();
+
+if (shipmentError) {
+  throw shipmentError;
+}
+
+if (!shipment) {
+  return res.status(404).json({
+    success: false,
+    message: '対象Shipmentが見つかりません'
+  });
+}
+const { data: documents, error: documentsError } = await supabase
+  .from('shipment_delivery_share_documents')
+  .select(`
+    document_id,
+    document_type,
+    file_name,
+    mime_type,
+    file_size_bytes,
+    version_no,
+    uploaded_at
+  `)
+  .eq('share_id', share.share_id)
+  .eq('is_current', true)
+  .eq('is_visible', true)
+  .is('removed_at', null)
+  .order('uploaded_at', {
+    ascending: false
+  });
+
+if (documentsError) {
+  throw documentsError;
+}
+// =========================================================
+// 配送明細
+// =========================================================
+const { data: lineRows, error: lineError } = await supabase
+  .from('shipment_lines')
+  .select(`
+    line_id,
+    shipment_id,
+    pt,
+    commodity,
+    delivery_dest_id,
+    delivery_dest_short,
+    delivery_request_date,
+    delivery_request_time,
+    delivery_fixed,
+    delivery_fixed_time,
+    delivery_plan_date,
+    delivery_plan_time,
+    remarks,
+    vehicle_type,
+    carrier_name,
+    vehicle_no,
+    driver_name,
+    driver_phone,
+    delivery_note,
+    commodity_note,
+    customer_ref_no,
+    updated_at
+  `)
+  .eq('shipment_id', share.shipment_id)
+  .order('line_id');
+
+if (lineError) {
+  throw lineError;
+}
+
+let lines = lineRows || [];
+
+
+// delivery_refがある場合は、その配送先だけに限定
+if (share.delivery_ref) {
+  const deliveryRef = String(share.delivery_ref).trim();
+
+  lines = lines.filter(line => {
+    return (
+      String(line.line_id || '').trim() === deliveryRef ||
+      String(line.delivery_dest_id || '').trim() === deliveryRef
+    );
+  });
+}
+
+
+// =========================================================
+// 納品先マスタ
+// =========================================================
+const destIds = [
+  ...new Set(
+    lines
+      .map(line =>
+        String(line.delivery_dest_id || '').trim()
+      )
+      .filter(Boolean)
+  )
+];
+
+let destMap = {};
+
+if (destIds.length > 0) {
+  const { data: destRows, error: destError } = await supabase
+    .from('dests')
+    .select(`
+      dest_id,
+      dest_name,
+      d_address1,
+      d_address2,
+      d_tel,
+      d_contact_person
+    `)
+    .in('dest_id', destIds);
+
+  if (destError) {
+    throw destError;
+  }
+
+  destMap = (destRows || []).reduce((map, dest) => {
+    map[String(dest.dest_id).trim()] = dest;
+    return map;
+  }, {});
+}
+
+const mappedLines = lines.map(line => {
+  const dest =
+    destMap[String(line.delivery_dest_id || '').trim()] ||
+    null;
+
+  return {
+    line_id: line.line_id,
+
+    commodity:
+      line.commodity ||
+      line.commodity_note ||
+      null,
+
+    delivery_dest_id:
+      line.delivery_dest_id ||
+      null,
+
+    delivery_dest_short:
+      line.delivery_dest_short ||
+      null,
+
+    delivery_dest_name:
+      dest?.dest_name ||
+      line.delivery_dest_short ||
+      null,
+
+    delivery_address: [
+      dest?.d_address1 || '',
+      dest?.d_address2 || ''
+    ].filter(Boolean).join(' ') || null,
+
+    delivery_tel:
+      dest?.d_tel ||
+      null,
+
+    delivery_contact:
+      dest?.d_contact_person ||
+      null,
+
+    delivery_date:
+      line.delivery_fixed ||
+      line.delivery_plan_date ||
+      line.delivery_request_date ||
+      null,
+
+    delivery_time:
+      line.delivery_fixed_time ||
+      line.delivery_plan_time ||
+      line.delivery_request_time ||
+      null,
+
+    vehicle_type:
+      line.vehicle_type ||
+      shipment.vehicle_type ||
+      null,
+
+    carrier_name:
+      line.carrier_name ||
+      shipment.carrier_name ||
+      null,
+
+    vehicle_no:
+      line.vehicle_no ||
+      shipment.vehicle_no ||
+      null,
+
+    driver_name:
+      line.driver_name ||
+      shipment.driver_name ||
+      null,
+
+    driver_phone:
+      line.driver_phone ||
+      shipment.driver_phone ||
+      null,
+
+    remarks:
+      line.delivery_note ||
+      line.remarks ||
+      null
+  };
+});
+
+
+    const nowIso = new Date().toISOString();
+    const nextViewCount =
+      Number(share.view_count || 0) + 1;
+
+    // =========================================================
+// コンテナ情報
+// =========================================================
+const { data: containerRows, error: containerError } =
+  await supabase
+    .from('shipment_containers')
+    .select('*')
+    .eq('shipment_id', share.shipment_id)
+    .order('sort_no');
+
+if (containerError) {
+  throw containerError;
+}
+
+const legacyContainers = [];
+
+for (let i = 1; i <= 10; i++) {
+  const containerNo = shipment[`container_no_${i}`];
+  const containerType = shipment[`container_type_${i}`];
+  const sealNo = shipment[`seal_no_${i}`];
+  const pcs = shipment[`pcs_${i}`];
+  const gw = shipment[`gw_kg_${i}`];
+  const cbm = shipment[`cbm_${i}`];
+
+  if (
+    !containerNo &&
+    !containerType &&
+    !sealNo &&
+    !pcs &&
+    !gw &&
+    !cbm
+  ) {
+    continue;
+  }
+
+  legacyContainers.push({
+    container_id: null,
+    container_no: containerNo || null,
+    container_type: containerType || null,
+    seal_no: sealNo || null,
+
+    // "1PALLET"など、単位込み文字列として保持
+    package_description: pcs || null,
+
+    gross_weight:
+      gw !== null && gw !== ''
+        ? Number(gw)
+        : null,
+
+    cbm:
+      cbm !== null && cbm !== ''
+        ? Number(cbm)
+        : null
+  });
+}
+
+
+const dbContainers = (containerRows || []).map(container => {
+  const rawPackage =
+    container.pcs ??
+    container.package_count ??
+    null;
+
+  return {
+    container_id:
+      container.container_id || null,
+
+    container_no:
+      container.container_no ||
+      container.container_number ||
+      null,
+
+    container_type:
+      container.container_type ||
+      container.container_size ||
+      null,
+
+    seal_no:
+      container.seal_no || null,
+
+    // shipment_containers側が単なる数値なら、
+    // 後でshipments側の「1PALLET」を優先する
+    package_description:
+      typeof rawPackage === 'string' &&
+      /[a-zA-Z]/.test(rawPackage)
+        ? rawPackage
+        : null,
+
+    gross_weight:
+      container.gw_kg !== null &&
+      container.gw_kg !== '' &&
+      Number(container.gw_kg) > 0
+        ? Number(container.gw_kg)
+        : null,
+
+    cbm:
+      container.cbm !== null &&
+      container.cbm !== '' &&
+      Number(container.cbm) > 0
+        ? Number(container.cbm)
+        : null
+  };
+});
+
+
+const containers = dbContainers.length > 0
+  ? dbContainers.map((container, index) => {
+      const legacy = legacyContainers[index] || {};
+
+      return {
+        ...container,
+
+        container_no:
+          container.container_no ||
+          legacy.container_no ||
+          null,
+
+        container_type:
+          container.container_type ||
+          legacy.container_type ||
+          null,
+
+        seal_no:
+          container.seal_no ||
+          legacy.seal_no ||
+          null,
+
+        package_description:
+          legacy.package_description ||
+          container.package_description ||
+          null,
+
+        gross_weight:
+          legacy.gross_weight ??
+          container.gross_weight ??
+          null,
+
+        cbm:
+          legacy.cbm ??
+          container.cbm ??
+          null
+      };
+    })
+  : legacyContainers;
+
+
+// =========================================================
+// Shipment全体の集計
+// =========================================================
+const totals = {
+  gross_weight: containers.reduce(
+    (sum, container) =>
+      sum + Number(container.gross_weight || 0),
+    0
+  ),
+
+  cbm: containers.reduce(
+    (sum, container) =>
+      sum + Number(container.cbm || 0),
+    0
+  )
+};
+
+
+// =========================================================
+// 公開ステータス
+// =========================================================
+const rawStatus =
+  String(shipment.status || '')
+    .trim()
+    .toLowerCase();
+
+const customsData =
+  shipment.customs_data &&
+  typeof shipment.customs_data === 'object'
+    ? shipment.customs_data
+    : {};
+
+const permitDate =
+  customsData.permit_date ||
+  customsData.customs_permit_date ||
+  customsData.import_permit_date ||
+  null;
+
+let publicStatus = '出港予定';
+
+if (
+  permitDate ||
+  rawStatus.includes('permit') ||
+  rawStatus.includes('許可')
+) {
+  publicStatus = '輸入許可';
+
+} else if (
+  shipment.customs_declared_date ||
+  shipment.default_customs_declared_date ||
+  rawStatus.includes('customs') ||
+  rawStatus.includes('通関')
+) {
+  publicStatus = '通関中';
+
+} else if (
+  rawStatus.includes('arrived') ||
+  rawStatus.includes('arrival') ||
+  rawStatus.includes('到着')
+) {
+  publicStatus = '到着済み';
+
+} else if (
+  rawStatus.includes('departed') ||
+  rawStatus.includes('departure') ||
+  rawStatus.includes('出港')
+) {
+  publicStatus = '出港済み';
+}
+
+    // 外部に公開する情報だけ返却
+    return res.json({
+  success: true,
+
+  share: {
+    share_id: share.share_id,
+    share_name: share.share_name,
+    recipient_type: share.recipient_type,
+    recipient_name: share.recipient_name,
+    recipient_contact_name:
+      share.recipient_contact_name,
+    expires_at: share.expires_at
+  },
+
+  shipment: {
+    shipment_id: shipment.shipment_id,
+    job_no: shipment.job_no || null,
+
+    public_status: publicStatus,
+
+    vessel:
+      shipment.vessel ||
+      null,
+
+    voyage:
+      shipment.voyage ||
+      null,
+
+    pol:
+      shipment.pol ||
+      null,
+
+    pod:
+      shipment.pod ||
+      null,
+
+    etd:
+      shipment.etd ||
+      null,
+
+    eta:
+      shipment.eta ||
+      null,
+
+    customs_declared_date:
+      shipment.customs_declared_date ||
+      shipment.default_customs_declared_date ||
+      null,
+
+    customs_permit_date:
+      permitDate
+  },
+
+  totals: {
+  gross_weight:
+    totals.gross_weight || null,
+
+  cbm:
+    totals.cbm || null
+},
+
+  deliveries: mappedLines,
+
+  containers,
+
+  documents: documents || [],
+
+  viewed: {
+    viewed_at: nowIso,
+    view_count: nextViewCount
+  }
+});
+
+  } catch (err) {
+    console.error(
+      'GET /api/shared-delivery/detail error:',
+      err
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        err.message ||
+        '共有配送情報の取得に失敗しました'
     });
   }
 });
@@ -6690,37 +7321,6 @@ app.post('/api/customer/upload-docs', async (req, res) => {
     isReadAdmin: false
   });
 }
-
-    // アップロードされた書類ごとにactivity登録
-    const activityRows = savedFileRecords.map((file, index) => ({
-      activity_id:
-        `ACT-${Date.now()}-${index}-${Math.random()
-          .toString(36)
-          .slice(2, 8)}`,
-
-      shipment_id,
-      line_id: null,
-      customer_code: session.customer_code,
-
-      actor_type: 'CUSTOMER',
-      actor_id: session_id || null,
-      activity_type: 'CUSTOMER_DOCUMENT',
-
-      title: '顧客書類がアップロードされました',
-      message:
-        `${shipment.job_no || shipment_id}：${file.fileName}`,
-
-      file_name: file.fileName || null,
-      file_url: file.url || null,
-
-      is_read_admin: false
-    }));
-
-    const { error: activityError } = await supabase
-      .from('shipment_activities')
-      .insert(activityRows);
-
-    if (activityError) throw activityError;
 
     return res.json({
       ok: true,
