@@ -7345,6 +7345,185 @@ app.post('/api/customer/upload-docs', async (req, res) => {
     });
   }
 });
+app.post('/api/customer/remove-doc', async (req, res) => {
+  try {
+    const {
+      shipment_id,
+      doc_type
+    } = req.body || {};
+
+    const shipmentId =
+      String(shipment_id || '').trim();
+
+    const docType =
+      String(doc_type || '').trim();
+
+    if (!shipmentId) {
+      throw new Error('shipment_id is required');
+    }
+
+    if (!docType) {
+      throw new Error('doc_type is required');
+    }
+
+    const allowedDocTypes = [
+      'Invoice',
+      'PL',
+      'CO',
+      'Other1',
+      'Other2',
+      'Other3'
+    ];
+
+    if (!allowedDocTypes.includes(docType)) {
+      throw new Error('無効な書類種別です');
+    }
+
+    // 顧客セッション確認
+    const session = await getSessionOrThrow(req);
+
+    const customerCode =
+      String(session.customer_code || '').trim();
+
+    if (!customerCode) {
+      throw new Error('顧客情報を取得できません');
+    }
+
+    // ログイン中の顧客に属する案件だけ取得
+    const {
+      data: shipment,
+      error: shipmentError
+    } = await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        customer_code,
+        customer_docs
+      `)
+      .eq('shipment_id', shipmentId)
+      .eq('customer_code', customerCode)
+      .single();
+
+    if (shipmentError) throw shipmentError;
+
+    if (!shipment) {
+      throw new Error('対象の案件が見つかりません');
+    }
+
+    let existingDocs = {};
+
+    if (typeof shipment.customer_docs === 'string') {
+      try {
+        existingDocs = JSON.parse(
+          shipment.customer_docs || '{}'
+        );
+      } catch {
+        existingDocs = {};
+      }
+    } else if (
+      shipment.customer_docs &&
+      typeof shipment.customer_docs === 'object' &&
+      !Array.isArray(shipment.customer_docs)
+    ) {
+      existingDocs = {
+        ...shipment.customer_docs
+      };
+    }
+
+    const oldUrl =
+      existingDocs[docType] || null;
+
+    // 既に削除済みでも正常終了
+    if (!oldUrl) {
+      return res.json({
+        ok: true,
+        already_removed: true,
+        customer_docs: existingDocs
+      });
+    }
+
+    delete existingDocs[docType];
+
+    const {
+      error: updateError
+    } = await supabase
+      .from('shipments')
+      .update({
+        customer_docs: JSON.stringify(existingDocs)
+      })
+      .eq('shipment_id', shipmentId)
+      .eq('customer_code', customerCode);
+
+    if (updateError) throw updateError;
+
+    // 削除履歴を登録
+    await insertShipmentActivity({
+      shipmentId,
+
+      customerCode:
+        shipment.customer_code ||
+        customerCode,
+
+      actorType: 'CUSTOMER',
+      actorId: session.session_id || null,
+
+      activityType: 'CUSTOMER_DOCUMENT_REMOVED',
+
+      title: '顧客書類の提出が取り消されました',
+
+      message:
+        `${shipment.job_no || shipmentId}：${docType}`,
+
+      fieldName: docType,
+
+      beforeData: {
+        document_type: docType,
+        file_url: oldUrl
+      },
+
+      afterData: {
+        document_type: docType,
+        file_url: null
+      },
+
+      targetRoles: ['ADMIN', 'CUSTOMER'],
+      priority: 'NORMAL',
+
+      fileName: docType,
+      fileUrl: oldUrl,
+
+      isReadAdmin: false
+    });
+
+    return res.json({
+      ok: true,
+      removed_doc_type: docType,
+      customer_docs: existingDocs
+    });
+
+  } catch (err) {
+    console.error(
+      '[customer remove-doc] error:',
+      err
+    );
+
+    const message =
+      err.message || String(err);
+
+    const status =
+      message.includes('セッション')
+        ? 401
+        : message.includes('見つかりません')
+          ? 404
+          : 400;
+
+    return res.status(status).json({
+      ok: false,
+      error: message
+    });
+  }
+});
 app.get('/api/admin/shipment-activities', async (req, res) => {
   try {
     const limit = Number(req.query.limit || 50);
