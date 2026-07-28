@@ -7569,12 +7569,12 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
     });
   }
 });
-app.post('/api/admin/read-activities', async (req, res) => {
+app.post('/api/admin/read-activity', async (req, res) => {
   try {
-    const { shipment_id } = req.body;
+    const { activity_id } = req.body;
 
-    if (!shipment_id) {
-      throw new Error('shipment_id is required');
+    if (!activity_id) {
+      throw new Error('activity_id is required');
     }
 
     const { error } = await supabase
@@ -7583,7 +7583,7 @@ app.post('/api/admin/read-activities', async (req, res) => {
         is_read_admin: true,
         read_at_admin: new Date().toISOString()
       })
-      .eq('shipment_id', shipment_id)
+      .eq('activity_id', activity_id)
       .eq('is_read_admin', false);
 
     if (error) throw error;
