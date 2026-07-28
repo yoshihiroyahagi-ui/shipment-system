@@ -9342,6 +9342,8 @@ app.get('/api/admin/shipment-activity-history', async (req, res) => {
         priority,
         file_name,
         file_url,
+        is_read_admin,
+        read_at_admin,
         created_at
       `)
       .eq('shipment_id', shipmentId)
