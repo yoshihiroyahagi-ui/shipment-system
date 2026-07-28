@@ -9309,6 +9309,11 @@ app.get('/api/admin/shipment-activity-history', async (req, res) => {
   try {
     const shipmentId =
       String(req.query.shipment_id || '').trim();
+    
+    console.log(
+  '[ADMIN HISTORY V2 CALLED]',
+  shipmentId
+);
 
     if (!shipmentId) {
       return res.status(400).json({
@@ -9419,6 +9424,7 @@ const rows = activities.map(activity => {
 
 return res.json({
   ok: true,
+  debug_version: 'ADMIN_HISTORY_V2',
   shipment_id: shipmentId,
   rows
 });
