@@ -9347,16 +9347,81 @@ app.get('/api/admin/shipment-activity-history', async (req, res) => {
         created_at
       `)
       .eq('shipment_id', shipmentId)
+      .contains('target_roles', ['ADMIN'])
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
 
-    return res.json({
-      ok: true,
-      shipment_id: shipmentId,
-      rows: data || []
-    });
+const activities = data || [];
+
+const customerCodes = [
+  ...new Set(
+    activities
+      .map(row => String(row.customer_code || '').trim())
+      .filter(Boolean)
+  )
+];
+
+let customerNameMap = {};
+
+if (customerCodes.length > 0) {
+  const { data: customers, error: customerError } =
+    await supabase
+      .from('customers')
+      .select(`
+        customer_code,
+        customer_name
+      `)
+      .in('customer_code', customerCodes);
+
+  if (customerError) throw customerError;
+
+  customerNameMap = Object.fromEntries(
+    (customers || []).map(customer => [
+      String(customer.customer_code || '').trim(),
+      customer.customer_name ||
+        customer.customer_code ||
+        ''
+    ])
+  );
+}
+
+const rows = activities.map(activity => {
+  const actorType =
+    String(activity.actor_type || '').toUpperCase();
+
+  let actorName = '';
+
+  if (actorType === 'CUSTOMER') {
+    actorName =
+      customerNameMap[
+        String(activity.customer_code || '').trim()
+      ] ||
+      activity.customer_code ||
+      '顧客';
+  } else if (actorType === 'ADMIN') {
+    actorName = '株式会社ビジネスラボ';
+  } else if (actorType === 'SYSTEM') {
+    actorName = 'システム';
+  } else {
+    actorName =
+      activity.actor_id ||
+      actorType ||
+      '不明';
+  }
+
+  return {
+    ...activity,
+    actor_name: actorName
+  };
+});
+
+return res.json({
+  ok: true,
+  shipment_id: shipmentId,
+  rows
+});
 
   } catch (err) {
     console.error(
