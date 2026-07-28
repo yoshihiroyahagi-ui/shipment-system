@@ -2930,6 +2930,7 @@ async function updateLine(lineId, customerCode, payload) {
   if (error) throw error;
 
   if (deliveryRequestChanged) {
+    console.log('[DELIVERY REQUEST ACTIVITY INSERT START]');
     await insertShipmentActivity({
       shipmentId: existing.shipment_id,
       lineId: existing.line_id,
@@ -2954,6 +2955,7 @@ async function updateLine(lineId, customerCode, payload) {
 
       priority: 'HIGH'
     });
+    console.log('[DELIVERY REQUEST ACTIVITY INSERT FINISHED]');
   }
 
   return await getLineDetail(lineId, customerCode);
