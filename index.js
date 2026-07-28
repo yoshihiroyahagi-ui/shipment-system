@@ -2911,6 +2911,12 @@ async function updateLine(lineId, customerCode, payload) {
       safePayload.remarks || null
   };
 
+  console.log('[DELIVERY REQUEST CHECK]', {
+  beforeDeliveryRequest,
+  afterDeliveryRequest,
+  changed: deliveryRequestChanged
+});
+
   const deliveryRequestChanged =
     JSON.stringify(beforeDeliveryRequest) !==
     JSON.stringify(afterDeliveryRequest);
