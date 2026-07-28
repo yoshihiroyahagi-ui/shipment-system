@@ -2841,32 +2841,116 @@ async function getLineDetail(lineId, customerCode) {
 async function updateLine(lineId, customerCode, payload) {
   const { data: existing, error: checkError } = await supabase
     .from('shipment_lines')
-    .select('line_id, customer_code')
+    .select(`
+      line_id,
+      shipment_id,
+      customer_code,
+      delivery_request_date,
+      delivery_request_time,
+      delivery_dest_short,
+      remarks,
+      commodity_note,
+      customer_ref_no
+    `)
     .eq('line_id', lineId)
     .eq('customer_code', customerCode)
-    .single()
+    .single();
 
-  if (checkError || !existing) throw new Error('更新対象が見つかりません')
+  if (checkError || !existing) {
+    throw new Error('更新対象が見つかりません');
+  }
 
   const safePayload = {
-    delivery_request_date: payload.delivery_request_date ?? null,
-    delivery_request_time: payload.delivery_request_time ?? null,
-    delivery_dest_short: payload.delivery_dest_short ?? null,
-    remarks: payload.remarks ?? null,
-    commodity_note: payload.commodity_note ?? null,
-    customer_ref_no: payload.customer_ref_no ?? null,
-    updated_at: new Date().toISOString()
-  }
+    delivery_request_date:
+      payload.delivery_request_date ?? null,
+
+    delivery_request_time:
+      payload.delivery_request_time ?? null,
+
+    delivery_dest_short:
+      payload.delivery_dest_short ?? null,
+
+    remarks:
+      payload.remarks ?? null,
+
+    commodity_note:
+      payload.commodity_note ?? null,
+
+    customer_ref_no:
+      payload.customer_ref_no ?? null,
+
+    updated_at:
+      new Date().toISOString()
+  };
+
+  const beforeDeliveryRequest = {
+    delivery_request_date:
+      existing.delivery_request_date || null,
+
+    delivery_request_time:
+      existing.delivery_request_time || null,
+
+    delivery_dest_short:
+      existing.delivery_dest_short || null,
+
+    remarks:
+      existing.remarks || null
+  };
+
+  const afterDeliveryRequest = {
+    delivery_request_date:
+      safePayload.delivery_request_date || null,
+
+    delivery_request_time:
+      safePayload.delivery_request_time || null,
+
+    delivery_dest_short:
+      safePayload.delivery_dest_short || null,
+
+    remarks:
+      safePayload.remarks || null
+  };
+
+  const deliveryRequestChanged =
+    JSON.stringify(beforeDeliveryRequest) !==
+    JSON.stringify(afterDeliveryRequest);
 
   const { error } = await supabase
     .from('shipment_lines')
     .update(safePayload)
     .eq('line_id', lineId)
-    .eq('customer_code', customerCode)
+    .eq('customer_code', customerCode);
 
-  if (error) throw error
+  if (error) throw error;
 
-  return await getLineDetail(lineId, customerCode)
+  if (deliveryRequestChanged) {
+    await insertShipmentActivity({
+      shipmentId: existing.shipment_id,
+      lineId: existing.line_id,
+      customerCode: existing.customer_code,
+
+      actorType: 'CUSTOMER',
+      actorId: customerCode,
+
+      activityType: 'DELIVERY_REQUEST_UPDATED',
+
+      title: '配送希望情報が更新されました',
+
+      message:
+        '希望納期・希望時間・配送先・備考が更新されました',
+
+      fieldName: 'delivery_request',
+
+      beforeData: beforeDeliveryRequest,
+      afterData: afterDeliveryRequest,
+
+      targetRoles: ['ADMIN'],
+
+      priority: 'HIGH'
+    });
+  }
+
+  return await getLineDetail(lineId, customerCode);
 }
 
 function normalizePkgUnit(unit = '') {
