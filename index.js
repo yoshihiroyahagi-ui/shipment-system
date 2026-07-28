@@ -2911,15 +2911,15 @@ async function updateLine(lineId, customerCode, payload) {
       safePayload.remarks || null
   };
 
+  const deliveryRequestChanged =
+    JSON.stringify(beforeDeliveryRequest) !==
+    JSON.stringify(afterDeliveryRequest);
+  
   console.log('[DELIVERY REQUEST CHECK]', {
   beforeDeliveryRequest,
   afterDeliveryRequest,
   changed: deliveryRequestChanged
 });
-
-  const deliveryRequestChanged =
-    JSON.stringify(beforeDeliveryRequest) !==
-    JSON.stringify(afterDeliveryRequest);
 
   const { error } = await supabase
     .from('shipment_lines')
