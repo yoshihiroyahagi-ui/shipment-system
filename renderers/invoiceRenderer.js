@@ -21,7 +21,9 @@ function taxLabel(v) {
   if (v === 'non_taxable') return '非課税';
   if (v === 'exempt') return '免税';
   if (v === 'out_of_scope') return '不課税';
-  if (v === 'pass_through') return '立替';
+  if (v === 'pass_through' || v === 'advance') {
+    return '立替';
+  }
   return v || '';
 }
 
