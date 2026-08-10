@@ -7636,7 +7636,8 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
         file_url,
         is_read_admin,
         read_at_admin,
-        created_at
+        created_at,
+        shipments (job_no)
       `, {
         count: 'exact'
       })
@@ -7646,11 +7647,16 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
 
     if (error) throw error;
 
-    return res.json({
-      ok: true,
-      rows: data || [],
-      unread_count: count || 0
-    });
+    const rows = (data || []).map(row => ({
+  ...row,
+  job_no: row.shipments?.job_no || ''
+}));
+
+return res.json({
+  ok: true,
+  rows,
+  unread_count: count || 0
+});
 
   } catch (err) {
     console.error('GET /api/admin/shipment-activities error:', err);
