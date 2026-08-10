@@ -7620,6 +7620,7 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
   try {
     const limit = Number(req.query.limit || 50);
 
+    // ① Activity取得
     const { data, error, count } = await supabase
       .from('shipment_activities')
       .select(`
@@ -7636,8 +7637,7 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
         file_url,
         is_read_admin,
         read_at_admin,
-        created_at,
-        shipments (job_no)
+        created_at
       `, {
         count: 'exact'
       })
@@ -7647,19 +7647,65 @@ app.get('/api/admin/shipment-activities', async (req, res) => {
 
     if (error) throw error;
 
-    const rows = (data || []).map(row => ({
-  ...row,
-  job_no: row.shipments?.job_no || ''
-}));
+    const activityRows = data || [];
 
-return res.json({
-  ok: true,
-  rows,
-  unread_count: count || 0
-});
+    // ② Activityに含まれるshipment_idを集める
+    const shipmentIds = [
+      ...new Set(
+        activityRows
+          .map(row =>
+            String(row.shipment_id || '').trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+
+    // ③ shipment_id → job_no のMapを作る
+    let jobNoMap = {};
+
+    if (shipmentIds.length > 0) {
+      const {
+        data: shipmentRows,
+        error: shipmentError
+      } = await supabase
+        .from('shipments')
+        .select(`
+          shipment_id,
+          job_no
+        `)
+        .in('shipment_id', shipmentIds);
+
+      if (shipmentError) throw shipmentError;
+
+      jobNoMap = Object.fromEntries(
+        (shipmentRows || []).map(row => [
+          String(row.shipment_id || '').trim(),
+          row.job_no || ''
+        ])
+      );
+    }
+
+    // ④ Activityにjob_noを追加
+    const rows = activityRows.map(activity => ({
+      ...activity,
+
+      job_no:
+        jobNoMap[
+          String(activity.shipment_id || '').trim()
+        ] || ''
+    }));
+
+    return res.json({
+      ok: true,
+      rows,
+      unread_count: count || 0
+    });
 
   } catch (err) {
-    console.error('GET /api/admin/shipment-activities error:', err);
+    console.error(
+      'GET /api/admin/shipment-activities error:',
+      err
+    );
 
     return res.status(500).json({
       ok: false,
