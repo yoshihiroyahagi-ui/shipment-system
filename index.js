@@ -9666,6 +9666,32 @@ app.get('/api/customer/shipment-activity-history', async (req, res) => {
     });
   }
 });
+app.get('/api/customer/session-check', async (req, res) => {
+  try {
+    const session = await getSessionOrThrow(req);
+
+    return res.json({
+      ok: true,
+      session_id: session.session_id,
+      customer_code: session.customer_code,
+      customer_name: session.customer_name || null,
+      expires_at: session.expires_at
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/customer/session-check error:',
+      err
+    );
+
+    const message = err.message || String(err);
+
+    return res.status(401).json({
+      ok: false,
+      error: message
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
