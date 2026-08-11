@@ -2527,19 +2527,29 @@ driver_phone:
   }
 }
 
-async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit = 1000) {
-  const from = Number(offset) || 0
-  const size = Number(limit) || 1000
-  const to = from + size - 1
+async function getMyLines(
+  customerCode,
+  filterMode = 'ACTIVE',
+  offset = 0,
+  limit = 1000
+) {
+  const from = Number(offset) || 0;
+  const size = Number(limit) || 1000;
+  const to = from + size - 1;
 
+  // =========================================================
+  // ① 配送情報 shipment_lines を取得
+  // =========================================================
   const { data, error, count } = await supabase
     .from('shipment_lines')
     .select(`
       line_id,
       shipment_id,
       customer_code,
+
       pt,
       commodity,
+
       delivery_dest_id,
       delivery_dest_short,
       delivery_request_date,
@@ -2552,11 +2562,13 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
       commodity_note,
       customer_ref_no,
       updated_at,
+
       vehicle_type,
       carrier_name,
       vehicle_no,
       driver_name,
       driver_phone,
+
       shipments!inner (
         shipment_id,
         job_no,
@@ -2569,20 +2581,82 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
         supplier_id,
         delay_info,
         earliest_delivery_date,
-        container_no_1, container_type_1, seal_no_1, pcs_1, gw_kg_1, cbm_1,
-        container_no_2, container_type_2, seal_no_2, pcs_2, gw_kg_2, cbm_2,
-        container_no_3, container_type_3, seal_no_3, pcs_3, gw_kg_3, cbm_3,
-        container_no_4, container_type_4, seal_no_4, pcs_4, gw_kg_4, cbm_4,
-        container_no_5, container_type_5, seal_no_5, pcs_5, gw_kg_5, cbm_5,
-        container_no_6, container_type_6, seal_no_6, pcs_6, gw_kg_6, cbm_6,
-        container_no_7, container_type_7, seal_no_7, pcs_7, gw_kg_7, cbm_7,
-        container_no_8, container_type_8, seal_no_8, pcs_8, gw_kg_8, cbm_8,
-        container_no_9, container_type_9, seal_no_9, pcs_9, gw_kg_9, cbm_9,
-        container_no_10, container_type_10, seal_no_10, pcs_10, gw_kg_10, cbm_10,
+
+        container_no_1,
+        container_type_1,
+        seal_no_1,
+        pcs_1,
+        gw_kg_1,
+        cbm_1,
+
+        container_no_2,
+        container_type_2,
+        seal_no_2,
+        pcs_2,
+        gw_kg_2,
+        cbm_2,
+
+        container_no_3,
+        container_type_3,
+        seal_no_3,
+        pcs_3,
+        gw_kg_3,
+        cbm_3,
+
+        container_no_4,
+        container_type_4,
+        seal_no_4,
+        pcs_4,
+        gw_kg_4,
+        cbm_4,
+
+        container_no_5,
+        container_type_5,
+        seal_no_5,
+        pcs_5,
+        gw_kg_5,
+        cbm_5,
+
+        container_no_6,
+        container_type_6,
+        seal_no_6,
+        pcs_6,
+        gw_kg_6,
+        cbm_6,
+
+        container_no_7,
+        container_type_7,
+        seal_no_7,
+        pcs_7,
+        gw_kg_7,
+        cbm_7,
+
+        container_no_8,
+        container_type_8,
+        seal_no_8,
+        pcs_8,
+        gw_kg_8,
+        cbm_8,
+
+        container_no_9,
+        container_type_9,
+        seal_no_9,
+        pcs_9,
+        gw_kg_9,
+        cbm_9,
+
+        container_no_10,
+        container_type_10,
+        seal_no_10,
+        pcs_10,
+        gw_kg_10,
+        cbm_10,
+
         suppliers (
-        supplier_name
-      )
+          supplier_name
+        )
       ),
+
       dests (
         dest_id,
         dest_name,
@@ -2591,126 +2665,284 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
         d_tel,
         d_contact_person
       )
-    `, { count: 'exact' })
+    `, {
+      count: 'exact'
+    })
     .eq('shipments.customer_code', customerCode)
     .order('job_no', {
       referencedTable: 'shipments',
       ascending: true
     })
-    .range(from, to)
+    .range(from, to);
 
-  if (error) throw error
+  if (error) throw error;
 
-  const shipmentMap = new Map();
+  const deliveryRows =
+    Array.isArray(data) ? data : [];
 
-(data || []).forEach(row => {
-  const shipmentId =
-    String(row.shipment_id || '').trim();
+  // =========================================================
+  // ② このページに含まれる shipment_id を取得
+  // =========================================================
+  const shipmentIds = [
+    ...new Set(
+      deliveryRows
+        .map(row =>
+          String(row.shipment_id || '').trim()
+        )
+        .filter(Boolean)
+    )
+  ];
 
-  if (!shipmentId) return;
+  // =========================================================
+  // ③ shipment_items を一括取得
+  // =========================================================
+  const itemMap = new Map();
 
-  if (!shipmentMap.has(shipmentId)) {
-    shipmentMap.set(shipmentId, {
-      baseRow: row,
-      commodities: [],
-      pts: [],
-      deliveryKeys: new Set()
+  if (shipmentIds.length > 0) {
+    const {
+      data: itemRows,
+      error: itemError
+    } = await supabase
+      .from('shipment_items')
+      .select(`
+        item_id,
+        shipment_id,
+        customer_code,
+        pt,
+        commodity,
+        quantity,
+        remarks,
+        created_at,
+        updated_at
+      `)
+      .in('shipment_id', shipmentIds)
+      .eq('customer_code', customerCode)
+      .order('created_at', {
+        ascending: true
+      });
+
+    if (itemError) throw itemError;
+
+    (itemRows || []).forEach(item => {
+      const shipmentId =
+        String(item.shipment_id || '').trim();
+
+      if (!shipmentId) return;
+
+      if (!itemMap.has(shipmentId)) {
+        itemMap.set(shipmentId, []);
+      }
+
+      itemMap
+        .get(shipmentId)
+        .push(item);
     });
   }
 
-  const group = shipmentMap.get(shipmentId);
+  // =========================================================
+  // ④ shipment_lines をShipment単位にまとめる
+  //    ※ ここでは配送情報だけを扱う
+  // =========================================================
+  const shipmentMap = new Map();
 
-  // 商品
-  const commodity =
-    String(row.commodity || '').trim();
+  deliveryRows.forEach(row => {
+    const shipmentId =
+      String(row.shipment_id || '').trim();
 
-  if (
-    commodity &&
-    !group.commodities.includes(commodity)
-  ) {
-    group.commodities.push(commodity);
-  }
+    if (!shipmentId) return;
 
-  // PT
-  const pt =
-    String(row.pt || '').trim();
+    if (!shipmentMap.has(shipmentId)) {
+      shipmentMap.set(shipmentId, {
+        baseRow: row,
+        deliveryRows: [],
+        deliveryKeys: new Set()
+      });
+    }
 
-  if (
-    pt &&
-    !group.pts.includes(pt)
-  ) {
-    group.pts.push(pt);
-  }
+    const group =
+      shipmentMap.get(shipmentId);
 
-  // 配送単位
-  const deliveryKey = [
-    row.delivery_dest_id || '',
-    row.delivery_dest_short || '',
-    row.delivery_fixed || '',
-    row.delivery_fixed_time || ''
-  ].join('|');
+    group.deliveryRows.push(row);
 
-  group.deliveryKeys.add(deliveryKey);
-});
+    // 配送先＋配送日時を配送単位として判定
+    const deliveryKey = [
+      row.delivery_dest_id || '',
+      row.delivery_dest_short || '',
+      row.delivery_fixed || '',
+      row.delivery_fixed_time || ''
+    ].join('|');
 
-let rows = Array.from(
-  shipmentMap.values()
-).map(group => {
-  const base =
-    mapLineRow(
-      group.baseRow,
-      group.deliveryKeys.size || 1
-    );
+    group.deliveryKeys.add(deliveryKey);
+  });
 
-  return {
-    ...base,
+  // =========================================================
+  // ⑤ Shipmentごとの表示データを作る
+  // =========================================================
+  let rows = Array.from(
+    shipmentMap.entries()
+  ).map(([shipmentId, group]) => {
 
-    commodities:
-      group.commodities,
+    const deliveryCount =
+      group.deliveryKeys.size || 1;
 
-    commodity_label:
-      group.commodities.join('\n'),
+    const base =
+      mapLineRow(
+        group.baseRow,
+        deliveryCount
+      );
 
-    pts:
-      group.pts,
+    // -----------------------------------------
+    // 新しい商品データ
+    // -----------------------------------------
+    const items =
+      itemMap.get(shipmentId) || [];
 
-    pt_label:
-      group.pts.join(', '),
+    let commodities = [];
+    let pts = [];
 
-    delivery_count:
-      group.deliveryKeys.size || 1
-  };
-});
+    if (items.length > 0) {
 
+      // ★ 新設shipment_itemsを正として使用
+
+      commodities = [
+        ...new Set(
+          items
+            .map(item =>
+              String(item.commodity || '').trim()
+            )
+            .filter(Boolean)
+        )
+      ];
+
+      pts = [
+        ...new Set(
+          items
+            .map(item =>
+              String(item.pt || '').trim()
+            )
+            .filter(Boolean)
+        )
+      ];
+
+    } else {
+
+      // ★ 既存案件用フォールバック
+      // shipment_items未移行の案件は
+      // 旧shipment_linesから商品/PTを取得
+
+      commodities = [
+        ...new Set(
+          group.deliveryRows
+            .map(row =>
+              String(row.commodity || '').trim()
+            )
+            .filter(Boolean)
+        )
+      ];
+
+      pts = [
+        ...new Set(
+          group.deliveryRows
+            .map(row =>
+              String(row.pt || '').trim()
+            )
+            .filter(Boolean)
+        )
+      ];
+    }
+
+    return {
+      ...base,
+
+      // 商品明細そのものも返しておく
+      items,
+
+      // 顧客ポータル一覧表示用
+      commodities,
+
+      commodity_label:
+        commodities.join('\n'),
+
+      pts,
+
+      pt_label:
+        pts.join(', '),
+
+      delivery_count:
+        deliveryCount
+    };
+  });
+
+  // =========================================================
+  // ⑥ JOB NO順
+  // =========================================================
   rows.sort((a, b) => {
-  const getNo = (v) => {
-    const s = String(v || '');
-    const m = s.match(/(\d{4})IM$/);
-    return m ? Number(m[1]) : 0;
-  };
+    const getNo = (v) => {
+      const s =
+        String(v || '');
 
-  return getNo(a.job_no) - getNo(b.job_no);
-});
+      const m =
+        s.match(/(\d{4})IM$/);
 
-  const doneStatuses = ['配達済み', 'キャンセル', '完了']
+      return m
+        ? Number(m[1])
+        : 0;
+    };
+
+    return (
+      getNo(a.job_no) -
+      getNo(b.job_no)
+    );
+  });
+
+  // =========================================================
+  // ⑦ ステータスフィルター
+  // =========================================================
+  const doneStatuses = [
+    '配達済み',
+    'キャンセル',
+    '完了'
+  ];
+
   if (filterMode === 'ACTIVE') {
-    rows = rows.filter(r => !doneStatuses.includes(String(r.status || '').trim()))
-  } else if (filterMode === 'DELIVERED') {
-    rows = rows.filter(r => doneStatuses.includes(String(r.status || '').trim()))
+    rows = rows.filter(
+      r =>
+        !doneStatuses.includes(
+          String(r.status || '').trim()
+        )
+    );
+  } else if (
+    filterMode === 'DELIVERED'
+  ) {
+    rows = rows.filter(
+      r =>
+        doneStatuses.includes(
+          String(r.status || '').trim()
+        )
+    );
   }
 
-  const rowsWithBicon = await applyBiconFlagsAcrossRows(rows);
+  // =========================================================
+  // ⑧ BICON
+  // =========================================================
+  const rowsWithBicon =
+    await applyBiconFlagsAcrossRows(rows);
 
-  const next_offset = from + size;
-  const has_more = (data || []).length === size;
-  const total = count || rowsWithBicon.length;
+  const next_offset =
+    from + size;
+
+  const has_more =
+    deliveryRows.length === size;
+
+  const total =
+    count || rowsWithBicon.length;
 
   return {
-  rows: rowsWithBicon,
-  next_offset,
-  has_more,
-  total
-};
+    rows: rowsWithBicon,
+    next_offset,
+    has_more,
+    total
+  };
 }
 
 async function getLineDetail(lineId, customerCode) {
@@ -3653,6 +3885,16 @@ app.get('/api/admin/shipment-detail', async (req, res) => {
     if (!shipment) {
   return res.status(404).json({ ok: false, error: `Shipment not found: ${shipmentId}` });
 }
+// Items
+const { data: items, error: itemError } =
+  await supabase
+    .from('shipment_items')
+    .select('*')
+    .eq('shipment_id', shipmentId)
+    .order('created_at', { ascending: true });
+
+if (itemError) throw itemError;
+
 const { data: containers, error: containerError } = await supabase
   .from('shipment_containers')
   .select('*')
@@ -3813,7 +4055,8 @@ supplier_add_2: supplier?.supplier_add_2 || '',
     res.json({ 
   ok: true, 
   shipment: resultShipment, 
-  lines: mappedLines, 
+  lines: mappedLines,
+  items: items || [], 
   containers: containers || []
 });
   } catch (err) {
@@ -3846,6 +4089,7 @@ app.post('/api/admin/save-shipment', async (req, res) => {
 }
     const shipment = req.body.shipment || {};
     const lines = Array.isArray(req.body.lines) ? req.body.lines : [];
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
 
     const shipmentId = String(shipment.shipment_id || '').trim();
     const isNew = !shipmentId;
@@ -4054,6 +4298,51 @@ if (!isNew) {
         .eq('shipment_id', savedShipmentId);
 
       if (updateError) throw updateError;
+
+      const { error: deleteItemError } = await supabase
+  .from('shipment_items')
+  .delete()
+  .eq('shipment_id', savedShipmentId);
+
+if (deleteItemError) throw deleteItemError;
+
+if (items.length > 0) {
+  const itemRows = items.map(item => ({
+    item_id:
+      item.item_id ||
+      `ITM-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+
+    shipment_id: savedShipmentId,
+
+    customer_code:
+      shipmentPayload.customer_code || null,
+
+    pt:
+      item.pt || null,
+
+    commodity:
+      item.commodity || null,
+
+    quantity:
+      item.quantity === '' ||
+      item.quantity === null ||
+      item.quantity === undefined
+        ? null
+        : Number(item.quantity),
+
+    remarks:
+      item.remarks || null,
+
+    updated_at:
+      new Date().toISOString()
+  }));
+
+  const { error: itemInsertError } = await supabase
+    .from('shipment_items')
+    .insert(itemRows);
+
+  if (itemInsertError) throw itemInsertError;
+}
 
       // =====================================================
 // スケジュール変更：ETD / ETA
