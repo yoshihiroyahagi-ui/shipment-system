@@ -10080,6 +10080,77 @@ app.get('/api/customer/session-check', async (req, res) => {
     });
   }
 });
+app.get('/api/customer/line-items', async (req, res) => {
+  try {
+    const session = await getSessionOrThrow(req);
+
+    const lineId =
+      String(req.query.line_id || '').trim();
+
+    if (!lineId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'line_id is required'
+      });
+    }
+
+    // lineからshipment_idを特定 + 所有権確認
+    const { data: line, error: lineError } =
+      await supabase
+        .from('shipment_lines')
+        .select(`
+          line_id,
+          shipment_id,
+          customer_code
+        `)
+        .eq('line_id', lineId)
+        .eq('customer_code', session.customer_code)
+        .maybeSingle();
+
+    if (lineError) throw lineError;
+
+    if (!line) {
+      return res.status(404).json({
+        ok: false,
+        error: '対象データが見つかりません'
+      });
+    }
+
+    // shipment_itemsから商品取得
+    const { data: items, error: itemError } =
+      await supabase
+        .from('shipment_items')
+        .select(`
+          item_id,
+          pt,
+          commodity,
+          quantity,
+          remarks
+        `)
+        .eq('shipment_id', line.shipment_id)
+        .eq('customer_code', session.customer_code)
+        .order('created_at', { ascending: true });
+
+    if (itemError) throw itemError;
+
+    return res.json({
+      ok: true,
+      shipment_id: line.shipment_id,
+      items: items || []
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/customer/line-items error:',
+      err
+    );
+
+    return res.status(401).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
