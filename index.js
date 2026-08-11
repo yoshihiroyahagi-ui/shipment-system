@@ -2723,6 +2723,8 @@ async function getMyLines(
 
     if (itemError) throw itemError;
 
+    console.log('[ITEM ROWS CHECK]', itemRows);
+
     (itemRows || []).forEach(item => {
       const shipmentId =
         String(item.shipment_id || '').trim();
@@ -2737,6 +2739,12 @@ async function getMyLines(
         .get(shipmentId)
         .push(item);
     });
+    console.log('[ITEM MAP CHECK]',
+  shipmentIds.map(id => ({
+    shipment_id: id,
+    items: itemMap.get(id) || []
+  }))
+);
   }
 
   // =========================================================
@@ -2797,6 +2805,11 @@ async function getMyLines(
     const items =
       itemMap.get(shipmentId) || [];
 
+    console.log('[SHIPMENT ITEMS]', {
+  shipmentId,
+  items
+});
+
     let commodities = [];
     let pts = [];
 
@@ -2813,6 +2826,10 @@ async function getMyLines(
             .filter(Boolean)
         )
       ];
+      console.log('[COMMODITIES RESULT]', {
+  shipmentId,
+  commodities
+});
 
       pts = [
         ...new Set(
