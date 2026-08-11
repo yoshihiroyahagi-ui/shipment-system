@@ -2942,8 +2942,26 @@ async function getMyLines(
   // =========================================================
   // ⑧ BICON
   // =========================================================
-  const rowsWithBicon =
-    await applyBiconFlagsAcrossRows(rows);
+  console.log(
+  '[BEFORE BICON]',
+  rows.map(r => ({
+    job_no: r.job_no,
+    commodity: r.commodity,
+    commodities: r.commodities
+  }))
+);
+
+const rowsWithBicon =
+  await applyBiconFlagsAcrossRows(rows);
+
+console.log(
+  '[AFTER BICON]',
+  rowsWithBicon.map(r => ({
+    job_no: r.job_no,
+    commodity: r.commodity,
+    commodities: r.commodities
+  }))
+);
 
   const next_offset =
     from + size;
