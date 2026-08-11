@@ -4333,6 +4333,7 @@ if (!isNew) {
         .eq('shipment_id', savedShipmentId);
 
       if (updateError) throw updateError;
+    }
 
       const { error: deleteItemError } = await supabase
   .from('shipment_items')
@@ -4597,7 +4598,7 @@ if (adminCommentChanges.changed) {
       
 
       savedJobNo = (updatedRow && updatedRow.job_no) || savedJobNo || '';
-    }
+    
     // containers 保存
 if (Array.isArray(containers)) {
   const { error: containerDeleteError } = await supabase
