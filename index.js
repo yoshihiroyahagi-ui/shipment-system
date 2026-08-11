@@ -2601,22 +2601,86 @@ async function getMyLines(customerCode, filterMode = 'ACTIVE', offset = 0, limit
 
   if (error) throw error
 
-  const deliveryCountMap = new Map();
+  const shipmentMap = new Map();
 
 (data || []).forEach(row => {
-  const shipmentId = row.shipment_id;
-  deliveryCountMap.set(
-    shipmentId,
-    (deliveryCountMap.get(shipmentId) || 0) + 1
-  );
+  const shipmentId =
+    String(row.shipment_id || '').trim();
+
+  if (!shipmentId) return;
+
+  if (!shipmentMap.has(shipmentId)) {
+    shipmentMap.set(shipmentId, {
+      baseRow: row,
+      commodities: [],
+      pts: [],
+      deliveryKeys: new Set()
+    });
+  }
+
+  const group = shipmentMap.get(shipmentId);
+
+  // 商品
+  const commodity =
+    String(row.commodity || '').trim();
+
+  if (
+    commodity &&
+    !group.commodities.includes(commodity)
+  ) {
+    group.commodities.push(commodity);
+  }
+
+  // PT
+  const pt =
+    String(row.pt || '').trim();
+
+  if (
+    pt &&
+    !group.pts.includes(pt)
+  ) {
+    group.pts.push(pt);
+  }
+
+  // 配送単位
+  const deliveryKey = [
+    row.delivery_dest_id || '',
+    row.delivery_dest_short || '',
+    row.delivery_fixed || '',
+    row.delivery_fixed_time || ''
+  ].join('|');
+
+  group.deliveryKeys.add(deliveryKey);
 });
 
-  let rows = (data || []).map(row =>
-  mapLineRow(
-    row,
-    deliveryCountMap.get(row.shipment_id) || 1
-  )
-);
+let rows = Array.from(
+  shipmentMap.values()
+).map(group => {
+  const base =
+    mapLineRow(
+      group.baseRow,
+      group.deliveryKeys.size || 1
+    );
+
+  return {
+    ...base,
+
+    commodities:
+      group.commodities,
+
+    commodity_label:
+      group.commodities.join('\n'),
+
+    pts:
+      group.pts,
+
+    pt_label:
+      group.pts.join(', '),
+
+    delivery_count:
+      group.deliveryKeys.size || 1
+  };
+});
 
   rows.sort((a, b) => {
   const getNo = (v) => {
