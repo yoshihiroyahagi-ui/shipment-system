@@ -5755,6 +5755,46 @@ const trucker = party.trucker || {};
 
 const pickupPlace = logistics.pickup_place || {};
 const delivery = logistics.delivery || {};
+const shipmentId =
+  String(
+    shipment.shipment_id ||
+    p.shipment_id ||
+    ''
+  ).trim();
+
+let shipmentItems = [];
+
+if (shipmentId) {
+  const { data: itemRows, error: itemError } =
+    await supabase
+      .from('shipment_items')
+      .select(`
+        item_id,
+        shipment_id,
+        pt,
+        commodity,
+        quantity,
+        remarks
+      `)
+      .eq('shipment_id', shipmentId)
+      .order('created_at', {
+        ascending: true
+      });
+
+  if (itemError) {
+    throw itemError;
+  }
+
+  shipmentItems =
+    Array.isArray(itemRows)
+      ? itemRows
+      : [];
+}
+
+console.log('[CUSTOMS ITEMS]', {
+  shipmentId,
+  shipmentItems
+});
 
 const snapshot = an.snapshot || {};
 const containers = Array.isArray(an.containers) ? an.containers : [];
@@ -5772,16 +5812,11 @@ const firstContainer = containers[0] || {};
 const firstLine = Array.isArray(delivery.lines) ? (delivery.lines[0] || {}) : {};
 
 const itemLines =
-  Array.isArray(delivery.items)
-    ? delivery.items
-        .map(item =>
-          item.commodity ||
-          item.item_name ||
-          item.description ||
-          ''
-        )
-        .filter(Boolean)
-    : [];
+  shipmentItems
+    .map(item =>
+      String(item.commodity || '').trim()
+    )
+    .filter(Boolean);
 
 const firstCommodity =
   itemLines.length
