@@ -7578,6 +7578,7 @@ customsJsonData.brokerCode = brokerCode;
       broker_code: brokerCode || null,
       customs_status: actionType === 'submit' ? 'DOCS_CHECK' : undefined,
       customs_data: JSON.stringify(customsJsonData),
+      item_name: requestData.itemName || null,
       inbound_no: requestData.inboundNo || null,
       customs_request_url: requestData.customsUrl || null,
       an_url: requestData.anUrl || null,
