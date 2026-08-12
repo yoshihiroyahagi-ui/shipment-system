@@ -18,9 +18,9 @@ export function buildCustomsHtmlFromPayload(payload = {}) {
   const customs = payload.customs || {};
   const labels = payload.labels || {};
 
-  const itemLines = (delivery.lines || [])
-    .map(l => l.commodity)
-    .filter(Boolean);
+  const itemLines = (delivery.items || [])
+  .map(item => item.commodity)
+  .filter(Boolean);
 
   const costCoverMap = {
   CC01: 'AN立替のみお願い致します。',

@@ -5764,9 +5764,14 @@ const firstContainer = containers[0] || {};
 const firstLine = Array.isArray(delivery.lines) ? (delivery.lines[0] || {}) : {};
 
 const itemLines =
-  Array.isArray(delivery.lines)
-    ? delivery.lines
-        .map(l => l.commodity || l.item_name || l.description || '')
+  Array.isArray(delivery.items)
+    ? delivery.items
+        .map(item =>
+          item.commodity ||
+          item.item_name ||
+          item.description ||
+          ''
+        )
         .filter(Boolean)
     : [];
 
@@ -5777,7 +5782,7 @@ const firstCommodity =
 
 const itemName =
   customs.item_name ||
-  firstCommodity ||
+  itemLines.join(' / ') ||
   '';
 
 const productInfo =
@@ -5887,7 +5892,7 @@ const data = {
   '',
               
   invoice_no: customs.invoice_no || '',
-  item_name: descriptionText,
+  item_name: itemName,
 
   descriptions:
   Array.isArray(customs.descriptions) &&
