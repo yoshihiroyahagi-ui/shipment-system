@@ -4327,6 +4327,12 @@ if (!isNew) {
 });
 
     } else {
+
+      console.log('[NODE ITEMS CHECK]', {
+  savedShipmentId,
+  items
+});
+
       const { error: updateError } = await supabase
         .from('shipments')
         .update(shipmentPayload)
@@ -4372,6 +4378,8 @@ if (items.length > 0) {
     updated_at:
       new Date().toISOString()
   }));
+
+  console.log('[NODE ITEM ROWS]', itemRows);
 
   const { error: itemInsertError } = await supabase
     .from('shipment_items')
