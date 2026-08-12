@@ -5762,6 +5762,13 @@ const shipmentId =
     ''
   ).trim();
 
+console.log('[CUSTOMS SHIPMENT ID CHECK]', {
+  shipmentObject: shipment,
+  shipment_id_from_shipment: shipment?.shipment_id,
+  shipment_id_from_p: p?.shipment_id,
+  resolvedShipmentId: shipmentId
+});
+
 let shipmentItems = [];
 
 if (shipmentId) {

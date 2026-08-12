@@ -202,9 +202,7 @@ try {
 }
 
 const itemName =
-  customs.item_name ||
-  firstCommodity ||
-  '';
+  String(customs.item_name || '').trim();
 
 const productInfo =
   customs.productInfo ||
