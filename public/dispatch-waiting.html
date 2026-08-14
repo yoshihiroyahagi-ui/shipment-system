@@ -311,15 +311,102 @@ async function loadDispatchWaiting() {
   list.innerHTML =
     '<div class="empty">読み込み中...</div>';
 
-
   try {
 
-    /*
-      次の段階でここを
-      実際のSHIPMENT APIにつなぐ。
-    */
+    const params = new URLSearchParams({
+      offset: '0',
+      limit: '300'
+    });
 
-    dispatchRows = [];
+    const response = await fetch(
+      `/api/admin/shipments?${params.toString()}`,
+      {
+        method: 'GET',
+        credentials: 'include'
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `HTTP ${response.status}`
+      );
+    }
+
+    const result = await response.json();
+
+    if (!result.ok) {
+      throw new Error(
+        result.error ||
+        'SHIPMENT一覧の取得に失敗しました'
+      );
+    }
+
+    const rows =
+      Array.isArray(result.rows)
+        ? result.rows
+        : [];
+
+    console.log(
+      '[DISPATCH ALL ROWS]',
+      rows
+    );
+
+    dispatchRows =
+      rows.filter(row => {
+
+        const fixed =
+          String(
+            row.delivery_fixed || ''
+          ).trim();
+
+        const status =
+          String(
+            row.status || ''
+          ).trim();
+
+        /*
+          配送確定日が入っているものは除外
+        */
+        if (fixed) {
+          return false;
+        }
+
+        /*
+          終了案件は除外
+        */
+        if (
+          status === 'キャンセル' ||
+          status === '完了' ||
+          status === '配達済み'
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+    /*
+      ETAが早い順
+    */
+    dispatchRows.sort((a, b) => {
+
+      const aEta =
+        a.eta
+          ? new Date(a.eta).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+      const bEta =
+        b.eta
+          ? new Date(b.eta).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+      return aEta - bEta;
+    });
+
+    console.log(
+      '[DISPATCH WAITING]',
+      dispatchRows
+    );
 
     renderDispatchWaiting();
 
@@ -331,9 +418,11 @@ async function loadDispatchWaiting() {
     );
 
     list.innerHTML =
-      '<div class="empty">読み込みに失敗しました</div>';
+      `<div class="empty">
+        読み込みに失敗しました<br>
+        ${escapeHtml(err.message)}
+      </div>`;
   }
-
 }
 
 
