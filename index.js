@@ -3721,7 +3721,6 @@ app.get('/api/admin/shipments', async (req, res) => {
     if (error) throw error;
     
     const rows = data || [];
-    const rows = data || [];
 
 console.log(
   '[DELIVERY DATA SAMPLES]',
