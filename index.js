@@ -3720,20 +3720,8 @@ app.get('/api/admin/shipments', async (req, res) => {
 
     if (error) throw error;
     
-    const rows = data || [];console.log(
-  '[DELIVERY DATA SAMPLES]',
-  rows
-    .filter(row =>
-      row.delivery_data &&
-      String(row.delivery_data).trim() !== ''
-    )
-    .slice(-5)
-    .map(row => ({
-      job_no: row.job_no,
-      eta: row.eta,
-      delivery_data: row.delivery_data
-    }))
-);
+    const rows = data || [];
+
     rows.sort((a, b) => {
   const getNo = (v) => {
     const s = String(v || '');
