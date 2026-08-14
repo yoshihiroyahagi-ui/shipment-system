@@ -246,20 +246,34 @@
 
   <div class="toolbar">
 
-    <input
-      id="search-input"
-      type="text"
-      placeholder="JOB NO / 配送先検索"
-      oninput="renderDispatchWaiting()"
-    >
+  <select
+    id="customer-filter"
+    onchange="renderDispatchWaiting()"
+    style="
+      height:38px;
+      border:1px solid #cbd5e1;
+      border-radius:7px;
+      padding:0 10px;
+      background:white;
+    "
+  >
+    <option value="">全顧客</option>
+  </select>
 
-    <input
-      id="eta-filter"
-      type="date"
-      onchange="renderDispatchWaiting()"
-    >
+  <input
+    id="search-input"
+    type="text"
+    placeholder="JOB NO / 配送先検索"
+    oninput="renderDispatchWaiting()"
+  >
 
-  </div>
+  <input
+    id="eta-filter"
+    type="date"
+    onchange="renderDispatchWaiting()"
+  >
+
+</div>
 
 
   <div
@@ -346,6 +360,8 @@ async function loadDispatchWaiting() {
       dispatchRows
     );
 
+    setupCustomerFilter();
+
     renderDispatchWaiting();
 
   } catch (err) {
@@ -362,7 +378,54 @@ async function loadDispatchWaiting() {
       </div>`;
   }
 }
+function setupCustomerFilter() {
+  const select =
+    document.getElementById('customer-filter');
 
+  const currentValue =
+    select.value;
+
+  const customers = [
+    ...new Map(
+      dispatchRows
+        .filter(row => row.customer_code)
+        .map(row => [
+          row.customer_code,
+          {
+            code: row.customer_code,
+            name:
+              row.customer_name ||
+              row.customer_code
+          }
+        ])
+    ).values()
+  ];
+
+  customers.sort((a, b) =>
+    a.name.localeCompare(
+      b.name,
+      'ja'
+    )
+  );
+
+  select.innerHTML =
+    '<option value="">全顧客</option>' +
+    customers
+      .map(c => `
+        <option value="${escapeHtml(c.code)}">
+          ${escapeHtml(c.name)}
+        </option>
+      `)
+      .join('');
+
+  if (
+    customers.some(
+      c => c.code === currentValue
+    )
+  ) {
+    select.value = currentValue;
+  }
+}
 
 function renderDispatchWaiting() {
 
@@ -381,9 +444,21 @@ function renderDispatchWaiting() {
       .getElementById('eta-filter')
       .value;
 
+  const customerFilter =
+  document
+    .getElementById('customer-filter')
+    .value;
+
 
   const rows =
     dispatchRows.filter(row => {
+
+      if (
+        customerFilter &&
+        String(row.customer_code || '') !== customerFilter
+        ) {
+        return false;
+        }
 
       if (search) {
 
@@ -439,15 +514,24 @@ function renderDispatchWaiting() {
       >
 
         <div>
-          <span class="label">
-            JOB NO
-          </span>
+         <span class="label">
+          顧客 / JOB NO
+         </span>
 
-          <div class="job-no">
-            ${escapeHtml(row.job_no || '-')}
-          </div>
-        </div>
+        <div
+         style="
+          font-size:11px;
+          color:#64748b;
+          margin-bottom:2px;
+          "
+        >
+         ${escapeHtml(row.customer_name || '-')}
+       </div>
 
+       <div class="job-no">
+         ${escapeHtml(row.job_no || '-')}
+       </div>
+    </div>
 
         <div>
           <span class="label">
@@ -637,23 +721,26 @@ function startDispatchRemoveCountdown(
   lineId
 ) {
   let remaining = 30;
+  let finished = false;
 
   card.style.opacity = '0.75';
   card.style.background = '#f0fdf4';
   card.style.borderColor = '#86efac';
 
-  const button =
+  const confirmButton =
     card.querySelector('.confirm-btn');
 
-  if (!button) return;
+  if (!confirmButton) return;
 
-  button.disabled = true;
-
-  const originalButtonHtml =
-    button.outerHTML;
+  /*
+    元の確定ボタンは消さずに隠す
+  */
+  confirmButton.style.display = 'none';
 
   const actionArea =
     document.createElement('div');
+
+  actionArea.className = 'dispatch-confirm-action';
 
   actionArea.style.display = 'flex';
   actionArea.style.flexDirection = 'column';
@@ -689,7 +776,10 @@ function startDispatchRemoveCountdown(
     </button>
   `;
 
-  button.replaceWith(actionArea);
+  confirmButton.insertAdjacentElement(
+    'afterend',
+    actionArea
+  );
 
   const countdown =
     actionArea.querySelector(
@@ -700,8 +790,6 @@ function startDispatchRemoveCountdown(
     actionArea.querySelector(
       '.dispatch-undo-btn'
     );
-
-  let finished = false;
 
   const timer =
     setInterval(() => {
@@ -729,7 +817,6 @@ function startDispatchRemoveCountdown(
         card.remove();
 
         updateWaitingCount();
-
       }
 
     }, 1000);
@@ -771,12 +858,29 @@ function startDispatchRemoveCountdown(
 
         clearInterval(timer);
 
+        /*
+          カードを通常状態へ戻す
+        */
         card.style.opacity = '1';
         card.style.background = 'white';
         card.style.borderColor = '#e2e8f0';
 
-        actionArea.outerHTML =
-          originalButtonHtml;
+        /*
+          取消表示を削除
+        */
+        actionArea.remove();
+
+        /*
+          元の確定ボタンを復活
+        */
+        confirmButton.style.display = '';
+        confirmButton.disabled = false;
+        confirmButton.textContent = '確定';
+
+        console.log(
+          '[dispatch undo success]',
+          lineId
+        );
 
       } catch (err) {
 

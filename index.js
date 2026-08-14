@@ -4197,6 +4197,30 @@ app.get('/api/admin/dispatch-waiting', async (req, res) => {
       return acc;
     }, {});
 
+    const customerCodes = [
+  ...new Set(
+    (shipmentRows || [])
+      .map(s => String(s.customer_code || '').trim())
+      .filter(Boolean)
+  )
+];
+
+let customerMap = {};
+
+if (customerCodes.length > 0) {
+  const { data: customerRows, error: customerError } = await supabase
+    .from('customers')
+    .select('customer_code, customer_name')
+    .in('customer_code', customerCodes);
+
+  if (customerError) throw customerError;
+
+  customerMap = (customerRows || []).reduce((acc, c) => {
+    acc[String(c.customer_code).trim()] =
+      c.customer_name || c.customer_code || '';
+    return acc;
+  }, {});
+}
 
     // ③ 配送先マスタ取得
     const destIds = [
@@ -4264,6 +4288,14 @@ app.get('/api/admin/dispatch-waiting', async (req, res) => {
 
           job_no:
             shipment.job_no || '',
+          
+          customer_code:
+            shipment.customer_code || '',
+
+          customer_name:
+            customerMap[
+              String(shipment.customer_code || '').trim()
+            ] || shipment.customer_code || '',
 
           status:
             shipment.status || '',
