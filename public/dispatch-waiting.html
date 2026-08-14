@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>配車調整</title>
+
+  <link
+    href="https://fonts.googleapis.com/icon?family=Material+Icons"
+    rel="stylesheet"
+  >
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f8fafc;
+      color: #334155;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      padding: 14px 22px;
+
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .count {
+      background: #e0f2fe;
+      color: #0369a1;
+
+      padding: 4px 10px;
+      border-radius: 999px;
+
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .reload-btn {
+      border: 1px solid #cbd5e1;
+      background: white;
+
+      border-radius: 8px;
+
+      padding: 8px 12px;
+
+      cursor: pointer;
+
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+
+      padding: 14px 22px;
+
+      background: white;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .toolbar input {
+      height: 38px;
+
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+
+      padding: 0 10px;
+
+      font-size: 14px;
+    }
+
+    .main {
+      padding: 18px 22px 50px;
+    }
+
+    .dispatch-card {
+      background: white;
+
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+
+      padding: 14px 16px;
+      margin-bottom: 10px;
+
+      box-shadow:
+        0 1px 2px rgba(15,23,42,0.04);
+
+      display: grid;
+
+      grid-template-columns:
+        130px
+        120px
+        minmax(160px, 1fr)
+        minmax(180px, 1.3fr)
+        150px
+        110px
+        90px;
+
+      align-items: center;
+      gap: 12px;
+    }
+
+    .job-no {
+      font-weight: 800;
+      color: #0284c7;
+    }
+
+    .label {
+      display: block;
+
+      font-size: 10px;
+      color: #94a3b8;
+
+      margin-bottom: 2px;
+    }
+
+    .value {
+      font-size: 13px;
+    }
+
+    .fixed-date,
+    .fixed-time {
+      height: 36px;
+
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+
+      padding: 0 8px;
+
+      background: white;
+    }
+
+    .confirm-btn {
+      height: 36px;
+
+      border: none;
+      border-radius: 7px;
+
+      background: #0284c7;
+      color: white;
+
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .confirm-btn:hover {
+      background: #0369a1;
+    }
+
+    .empty {
+      padding: 60px 20px;
+
+      text-align: center;
+      color: #94a3b8;
+    }
+
+    .status {
+      font-size: 12px;
+
+      padding: 3px 7px;
+      border-radius: 999px;
+
+      display: inline-block;
+
+      background: #fef3c7;
+      color: #92400e;
+
+      font-weight: 700;
+    }
+
+    @media (max-width: 1100px) {
+      .dispatch-card {
+        grid-template-columns:
+          120px
+          110px
+          1fr
+          1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+
+    <div class="header-left">
+
+      <div class="title">
+        🚚 配車調整
+      </div>
+
+      <div
+        id="waiting-count"
+        class="count"
+      >
+        0件
+      </div>
+
+    </div>
+
+    <button
+      class="reload-btn"
+      onclick="loadDispatchWaiting()"
+    >
+      更新
+    </button>
+
+  </div>
+
+
+  <div class="toolbar">
+
+    <input
+      id="search-input"
+      type="text"
+      placeholder="JOB NO / 配送先検索"
+      oninput="renderDispatchWaiting()"
+    >
+
+    <input
+      id="eta-filter"
+      type="date"
+      onchange="renderDispatchWaiting()"
+    >
+
+  </div>
+
+
+  <div
+    id="dispatch-list"
+    class="main"
+  >
+    <div class="empty">
+      読み込み中...
+    </div>
+  </div>
+
+
+<script>
+
+let dispatchRows = [];
+
+
+function escapeHtml(value) {
+
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+}
+
+
+function shortDate(value) {
+
+  if (!value) return '-';
+
+  const s = String(value);
+
+  if (s.length >= 10) {
+    return s.substring(5, 10);
+  }
+
+  return s;
+}
+
+
+async function loadDispatchWaiting() {
+
+  const list =
+    document.getElementById('dispatch-list');
+
+  list.innerHTML =
+    '<div class="empty">読み込み中...</div>';
+
+
+  try {
+
+    /*
+      次の段階でここを
+      実際のSHIPMENT APIにつなぐ。
+    */
+
+    dispatchRows = [];
+
+    renderDispatchWaiting();
+
+  } catch (err) {
+
+    console.error(
+      '[dispatch waiting load]',
+      err
+    );
+
+    list.innerHTML =
+      '<div class="empty">読み込みに失敗しました</div>';
+  }
+
+}
+
+
+function renderDispatchWaiting() {
+
+  const list =
+    document.getElementById('dispatch-list');
+
+  const search =
+    document
+      .getElementById('search-input')
+      .value
+      .trim()
+      .toLowerCase();
+
+  const etaFilter =
+    document
+      .getElementById('eta-filter')
+      .value;
+
+
+  const rows =
+    dispatchRows.filter(row => {
+
+      if (search) {
+
+        const text =
+          [
+            row.job_no,
+            row.delivery_dest_name
+          ]
+            .join(' ')
+            .toLowerCase();
+
+        if (!text.includes(search)) {
+          return false;
+        }
+      }
+
+
+      if (
+        etaFilter &&
+        String(row.eta || '')
+          .substring(0, 10) !== etaFilter
+      ) {
+        return false;
+      }
+
+
+      return true;
+
+    });
+
+
+  document.getElementById(
+    'waiting-count'
+  ).textContent =
+    `${rows.length}件`;
+
+
+  if (rows.length === 0) {
+
+    list.innerHTML =
+      '<div class="empty">配車待ちはありません</div>';
+
+    return;
+  }
+
+
+  list.innerHTML =
+    rows.map(row => `
+
+      <div
+        class="dispatch-card"
+        data-shipment-id="${escapeHtml(row.shipment_id)}"
+      >
+
+        <div>
+          <span class="label">
+            JOB NO
+          </span>
+
+          <div class="job-no">
+            ${escapeHtml(row.job_no || '-')}
+          </div>
+        </div>
+
+
+        <div>
+          <span class="label">
+            ETA
+          </span>
+
+          <div class="value">
+            ${escapeHtml(shortDate(row.eta))}
+          </div>
+        </div>
+
+
+        <div>
+          <span class="label">
+            配送先
+          </span>
+
+          <div class="value">
+            ${escapeHtml(
+              row.delivery_dest_name || '-'
+            )}
+          </div>
+        </div>
+
+
+        <div>
+          <span class="label">
+            納品予定 / 希望
+          </span>
+
+          <div class="value">
+            ${escapeHtml(
+              row.delivery_plan_date || '-'
+            )}
+
+            ${escapeHtml(
+              row.delivery_plan_time || ''
+            )}
+          </div>
+
+          <div
+            class="value"
+            style="color:#94a3b8;margin-top:3px;"
+          >
+            希望：
+            ${escapeHtml(
+              row.delivery_request_date || '-'
+            )}
+
+            ${escapeHtml(
+              row.delivery_request_time || ''
+            )}
+          </div>
+        </div>
+
+
+        <div>
+          <span class="label">
+            配送確定日
+          </span>
+
+          <input
+            type="date"
+            class="fixed-date"
+          >
+        </div>
+
+
+        <div>
+          <span class="label">
+            時間
+          </span>
+
+          <input
+            type="time"
+            class="fixed-time"
+          >
+        </div>
+
+
+        <button
+          type="button"
+          class="confirm-btn"
+          onclick="
+            confirmDispatch(
+              '${escapeHtml(row.shipment_id)}',
+              this
+            )
+          "
+        >
+          確定
+        </button>
+
+      </div>
+
+    `).join('');
+
+}
+
+
+function confirmDispatch(
+  shipmentId,
+  button
+) {
+
+  /*
+    次の段階でAPI保存を実装。
+  */
+
+  console.log(
+    '[confirm dispatch]',
+    shipmentId
+  );
+
+}
+
+
+loadDispatchWaiting();
+
+</script>
+
+</body>
+</html>

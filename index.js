@@ -26,11 +26,16 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(cors({
-  origin: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+
+app.use((req, res, next) => {
+  console.log('[HTTP DEBUG]', {
+    method: req.method,
+    url: req.originalUrl,
+    host: req.headers.host
+  });
+
+  next();
+});
 
 app.use(
   express.static(
