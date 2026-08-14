@@ -533,7 +533,7 @@ function renderDispatchWaiting() {
           class="confirm-btn"
           onclick="
             confirmDispatch(
-              '${escapeHtml(row.shipment_id)}',
+              '${escapeHtml(row.line_id)}',
               this
             )
           "
@@ -548,22 +548,148 @@ function renderDispatchWaiting() {
 }
 
 
-function confirmDispatch(
-  shipmentId,
+async function confirmDispatch(
+  lineId,
   button
 ) {
+  try {
+    const card =
+      button.closest('.dispatch-card');
 
-  /*
-    次の段階でAPI保存を実装。
-  */
+    if (!card) {
+      throw new Error(
+        '対象カードが見つかりません'
+      );
+    }
 
-  console.log(
-    '[confirm dispatch]',
-    shipmentId
-  );
+    const dateInput =
+      card.querySelector('.fixed-date');
 
+    const timeInput =
+      card.querySelector('.fixed-time');
+
+    const deliveryFixed =
+      String(dateInput?.value || '').trim();
+
+    const deliveryFixedTime =
+      String(timeInput?.value || '').trim();
+
+    if (!deliveryFixed) {
+      alert('配送確定日を入力してください');
+      dateInput?.focus();
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = '保存中...';
+
+    const response = await fetch(
+      `/api/admin/dispatch-waiting/${encodeURIComponent(lineId)}`,
+      {
+        method: 'PATCH',
+
+        headers: {
+          'Content-Type': 'application/json'
+        },
+
+        credentials: 'include',
+
+        body: JSON.stringify({
+          delivery_fixed: deliveryFixed,
+          delivery_fixed_time:
+            deliveryFixedTime || null
+        })
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.error ||
+        '配送確定の保存に失敗しました'
+      );
+    }
+
+    startDispatchRemoveCountdown(
+      card,
+      lineId
+    );
+
+  } catch (err) {
+    console.error(
+      '[confirm dispatch error]',
+      err
+    );
+
+    alert(
+      err.message ||
+      '配送確定に失敗しました'
+    );
+
+    button.disabled = false;
+    button.textContent = '確定';
+  }
 }
+function startDispatchRemoveCountdown(
+  card,
+  lineId
+) {
+  let remaining = 30;
 
+  card.style.opacity = '0.65';
+  card.style.background = '#f0fdf4';
+  card.style.borderColor = '#86efac';
+
+  const button =
+    card.querySelector('.confirm-btn');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      `確定済 ${remaining}秒`;
+  }
+
+  const timer =
+    setInterval(() => {
+
+      remaining -= 1;
+
+      if (button) {
+        button.textContent =
+          `確定済 ${remaining}秒`;
+      }
+
+      if (remaining <= 0) {
+        clearInterval(timer);
+
+        dispatchRows =
+          dispatchRows.filter(
+            row =>
+              String(row.line_id) !==
+              String(lineId)
+          );
+
+        card.remove();
+
+        document.getElementById(
+          'waiting-count'
+        ).textContent =
+          `${dispatchRows.length}件`;
+
+        if (
+          dispatchRows.length === 0
+        ) {
+          document.getElementById(
+            'dispatch-list'
+          ).innerHTML =
+            '<div class="empty">配車待ちはありません</div>';
+        }
+      }
+
+    }, 1000);
+}
 
 loadDispatchWaiting();
 
