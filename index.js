@@ -4107,6 +4107,248 @@ supplier_add_2: supplier?.supplier_add_2 || '',
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+app.get('/api/admin/dispatch-waiting', async (req, res) => {
+  try {
+
+    // ① 配送確定していない配送LINEを取得
+    const { data: lineRows, error: lineError } = await supabase
+      .from('shipment_lines')
+      .select(`
+        line_id,
+        shipment_id,
+        customer_code,
+        pt,
+        commodity,
+
+        delivery_dest_id,
+        delivery_dest_short,
+
+        delivery_request_date,
+        delivery_request_time,
+
+        delivery_fixed,
+        delivery_fixed_time,
+
+        delivery_plan_date,
+        delivery_plan_time,
+
+        remarks,
+
+        vehicle_type,
+        carrier_name,
+        vehicle_no,
+        driver_name,
+        driver_phone,
+
+        delivery_note,
+        commodity_note,
+        customer_ref_no,
+
+        updated_at
+      `)
+      .is('delivery_fixed', null)
+      .order('delivery_plan_date', { ascending: true });
+
+    if (lineError) throw lineError;
+
+    const lines = lineRows || [];
+
+    if (lines.length === 0) {
+      return res.json({
+        ok: true,
+        rows: []
+      });
+    }
+
+
+    // ② SHIPMENT情報取得
+    const shipmentIds = [
+      ...new Set(
+        lines
+          .map(l => String(l.shipment_id || '').trim())
+          .filter(Boolean)
+      )
+    ];
+
+    const { data: shipmentRows, error: shipmentError } = await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        status,
+        customer_code,
+        eta,
+        etd,
+        vessel,
+        voyage,
+
+        container_no_1,
+        container_type_1,
+
+        earliest_delivery_date
+      `)
+      .in('shipment_id', shipmentIds);
+
+    if (shipmentError) throw shipmentError;
+
+
+    const shipmentMap = (shipmentRows || []).reduce((acc, s) => {
+      acc[String(s.shipment_id).trim()] = s;
+      return acc;
+    }, {});
+
+
+    // ③ 配送先マスタ取得
+    const destIds = [
+      ...new Set(
+        lines
+          .map(l => String(l.delivery_dest_id || '').trim())
+          .filter(Boolean)
+      )
+    ];
+
+    let destMap = {};
+
+    if (destIds.length > 0) {
+
+      const { data: destRows, error: destError } = await supabase
+        .from('dests')
+        .select(`
+          dest_id,
+          dest_name,
+          d_address1,
+          d_address2,
+          d_tel,
+          d_contact_person
+        `)
+        .in('dest_id', destIds);
+
+      if (destError) throw destError;
+
+      destMap = (destRows || []).reduce((acc, d) => {
+        acc[String(d.dest_id).trim()] = d;
+        return acc;
+      }, {});
+    }
+
+
+    // ④ LINE + SHIPMENT + 配送先を結合
+    const rows = lines
+      .map(line => {
+
+        const shipment =
+          shipmentMap[
+            String(line.shipment_id || '').trim()
+          ] || null;
+
+        if (!shipment) {
+          return null;
+        }
+
+        // 終了案件は配車待ちに出さない
+        if (
+          shipment.status === 'キャンセル' ||
+          shipment.status === '完了' ||
+          shipment.status === '配達済み'
+        ) {
+          return null;
+        }
+
+        const dest =
+          destMap[
+            String(line.delivery_dest_id || '').trim()
+          ] || null;
+
+        return {
+          ...line,
+
+          job_no:
+            shipment.job_no || '',
+
+          status:
+            shipment.status || '',
+
+          eta:
+            shipment.eta || null,
+
+          etd:
+            shipment.etd || null,
+
+          vessel:
+            shipment.vessel || '',
+
+          voyage:
+            shipment.voyage || '',
+
+          earliest_delivery_date:
+            shipment.earliest_delivery_date || null,
+
+          container_no:
+            shipment.container_no_1 || '',
+
+          container_type:
+            shipment.container_type_1 || '',
+
+          delivery_dest_name:
+            dest?.dest_name ||
+            line.delivery_dest_short ||
+            '',
+
+          delivery_address:
+            dest
+              ? [
+                  dest.d_address1 || '',
+                  dest.d_address2 || ''
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+              : '',
+
+          delivery_tel:
+            dest?.d_tel || '',
+
+          delivery_contact:
+            dest?.d_contact_person || ''
+        };
+      })
+      .filter(Boolean);
+
+
+    // ⑤ ETA順
+    rows.sort((a, b) => {
+
+      const aEta =
+        a.eta
+          ? new Date(a.eta).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+      const bEta =
+        b.eta
+          ? new Date(b.eta).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+      return aEta - bEta;
+    });
+
+
+    res.json({
+      ok: true,
+      rows
+    });
+
+  } catch (err) {
+
+    console.error(
+      'GET /api/admin/dispatch-waiting error:',
+      err
+    );
+
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
 function toNullableNumber(v) {
   if (v === '' || v === null || v === undefined) return null;
 
