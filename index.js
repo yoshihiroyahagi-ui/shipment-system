@@ -1020,10 +1020,13 @@ const mappedLines = lines.map(line => {
       null,
 
     delivery_time:
-      line.delivery_fixed_time ||
-      line.delivery_plan_time ||
-      line.delivery_request_time ||
-      null,
+      line.delivery_fixed
+        ? (line.delivery_fixed_time || null)
+        : line.delivery_plan_date
+          ? (line.delivery_plan_time || null)
+          : line.delivery_request_date
+            ? (line.delivery_request_time || null)
+            : null,
 
     vehicle_type:
       line.vehicle_type ||
