@@ -638,30 +638,85 @@ function startDispatchRemoveCountdown(
 ) {
   let remaining = 30;
 
-  card.style.opacity = '0.65';
+  card.style.opacity = '0.75';
   card.style.background = '#f0fdf4';
   card.style.borderColor = '#86efac';
 
   const button =
     card.querySelector('.confirm-btn');
 
-  if (button) {
-    button.disabled = true;
-    button.textContent =
-      `確定済 ${remaining}秒`;
-  }
+  if (!button) return;
+
+  button.disabled = true;
+
+  const originalButtonHtml =
+    button.outerHTML;
+
+  const actionArea =
+    document.createElement('div');
+
+  actionArea.style.display = 'flex';
+  actionArea.style.flexDirection = 'column';
+  actionArea.style.gap = '5px';
+
+  actionArea.innerHTML = `
+    <div
+      class="dispatch-confirmed-countdown"
+      style="
+        font-size:12px;
+        font-weight:700;
+        color:#15803d;
+        text-align:center;
+      "
+    >
+      ✓ 確定済 ${remaining}秒
+    </div>
+
+    <button
+      type="button"
+      class="dispatch-undo-btn"
+      style="
+        height:30px;
+        border:1px solid #f59e0b;
+        border-radius:6px;
+        background:#fff;
+        color:#b45309;
+        cursor:pointer;
+        font-weight:700;
+      "
+    >
+      取消
+    </button>
+  `;
+
+  button.replaceWith(actionArea);
+
+  const countdown =
+    actionArea.querySelector(
+      '.dispatch-confirmed-countdown'
+    );
+
+  const undoButton =
+    actionArea.querySelector(
+      '.dispatch-undo-btn'
+    );
+
+  let finished = false;
 
   const timer =
     setInterval(() => {
 
       remaining -= 1;
 
-      if (button) {
-        button.textContent =
-          `確定済 ${remaining}秒`;
+      if (countdown) {
+        countdown.textContent =
+          `✓ 確定済 ${remaining}秒`;
       }
 
       if (remaining <= 0) {
+
+        finished = true;
+
         clearInterval(timer);
 
         dispatchRows =
@@ -673,24 +728,89 @@ function startDispatchRemoveCountdown(
 
         card.remove();
 
-        document.getElementById(
-          'waiting-count'
-        ).textContent =
-          `${dispatchRows.length}件`;
+        updateWaitingCount();
 
-        if (
-          dispatchRows.length === 0
-        ) {
-          document.getElementById(
-            'dispatch-list'
-          ).innerHTML =
-            '<div class="empty">配車待ちはありません</div>';
-        }
       }
 
     }, 1000);
-}
 
+
+  undoButton.addEventListener(
+    'click',
+    async () => {
+
+      if (finished) return;
+
+      undoButton.disabled = true;
+      undoButton.textContent = '取消中...';
+
+      try {
+
+        const response = await fetch(
+          `/api/admin/dispatch-waiting/${encodeURIComponent(lineId)}/cancel`,
+          {
+            method: 'PATCH',
+
+            headers: {
+              'Content-Type': 'application/json'
+            },
+
+            credentials: 'include'
+          }
+        );
+
+        const result =
+          await response.json();
+
+        if (!response.ok || !result.ok) {
+          throw new Error(
+            result.error ||
+            '配送確定の取消に失敗しました'
+          );
+        }
+
+        clearInterval(timer);
+
+        card.style.opacity = '1';
+        card.style.background = 'white';
+        card.style.borderColor = '#e2e8f0';
+
+        actionArea.outerHTML =
+          originalButtonHtml;
+
+      } catch (err) {
+
+        console.error(
+          '[dispatch undo error]',
+          err
+        );
+
+        alert(
+          err.message ||
+          '配送確定の取消に失敗しました'
+        );
+
+        undoButton.disabled = false;
+        undoButton.textContent = '取消';
+      }
+    }
+  );
+}
+function updateWaitingCount() {
+
+  document.getElementById(
+    'waiting-count'
+  ).textContent =
+    `${dispatchRows.length}件`;
+
+  if (dispatchRows.length === 0) {
+
+    document.getElementById(
+      'dispatch-list'
+    ).innerHTML =
+      '<div class="empty">配車待ちはありません</div>';
+  }
+}
 loadDispatchWaiting();
 
 </script>

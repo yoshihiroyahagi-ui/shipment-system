@@ -4415,6 +4415,59 @@ app.patch('/api/admin/dispatch-waiting/:lineId', async (req, res) => {
     });
   }
 });
+app.patch('/api/admin/dispatch-waiting/:lineId/cancel', async (req, res) => {
+  try {
+    const lineId = String(req.params.lineId || '').trim();
+
+    if (!lineId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'line_id is required'
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('shipment_lines')
+      .update({
+        delivery_fixed: null,
+        delivery_fixed_time: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('line_id', lineId)
+      .select(`
+        line_id,
+        shipment_id,
+        delivery_fixed,
+        delivery_fixed_time
+      `)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({
+        ok: false,
+        error: '対象の配送データが見つかりません'
+      });
+    }
+
+    res.json({
+      ok: true,
+      line: data
+    });
+
+  } catch (err) {
+    console.error(
+      'PATCH /api/admin/dispatch-waiting/:lineId/cancel error:',
+      err
+    );
+
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
 function toNullableNumber(v) {
   if (v === '' || v === null || v === undefined) return null;
 
