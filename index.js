@@ -3721,11 +3721,28 @@ app.get('/api/admin/shipments', async (req, res) => {
     if (error) throw error;
     
     const rows = data || [];
-    console.log('[DELIVERY DATA SAMPLE]', {
-  job_no: rows[0]?.job_no,
-  delivery_data: rows[0]?.delivery_data
-});
+    const deliverySamples = rows
+  .filter(row => {
+    return (
+      row.delivery_data &&
+      String(row.delivery_data).trim() !== ''
+    );
+  })
+  .slice(-5);
 
+console.log(
+  '[DELIVERY DATA SAMPLES]',
+  deliverySamples.map(row => ({
+    job_no: row.job_no,
+    eta: row.eta,
+    delivery_data: row.delivery_data
+  }))
+);
+
+console.log('[DELIVERY DATA SAMPLE]', {
+  job_no: deliverySample?.job_no,
+  delivery_data: deliverySample?.delivery_data
+});
     rows.sort((a, b) => {
   const getNo = (v) => {
     const s = String(v || '');
