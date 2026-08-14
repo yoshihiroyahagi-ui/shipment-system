@@ -3720,9 +3720,7 @@ app.get('/api/admin/shipments', async (req, res) => {
 
     if (error) throw error;
     
-    const rows = data || [];
-
-console.log(
+    const rows = data || [];console.log(
   '[DELIVERY DATA SAMPLES]',
   rows
     .filter(row =>
@@ -3736,11 +3734,6 @@ console.log(
       delivery_data: row.delivery_data
     }))
 );
-
-console.log('[DELIVERY DATA SAMPLE]', {
-  job_no: deliverySample?.job_no,
-  delivery_data: deliverySample?.delivery_data
-});
     rows.sort((a, b) => {
   const getNo = (v) => {
     const s = String(v || '');
