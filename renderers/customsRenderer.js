@@ -580,8 +580,8 @@ ${esc([
   customs.pickupDate ? `搬出希望日：${fmtDate(customs.pickupDate)}` : '',
   (delivery.delivery_fixed || delivery.delivery_request_date)
     ? `納品日：${fmtDate(delivery.delivery_fixed || delivery.delivery_request_date)}` : '',
-  (delivery.delivery_fixed_time || delivery.delivery_request_time)
-    ? `納品時間：${delivery.delivery_fixed_time || delivery.delivery_request_time}` : ''
+  (delivery.delivery_fixed_time && delivery.delivery_fixed_time)
+    ? `納品時間：${delivery.delivery_fixed_time}` : ''
 ].filter(Boolean).join('\n'))}
     </div>
 
