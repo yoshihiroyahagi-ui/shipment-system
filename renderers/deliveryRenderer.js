@@ -494,8 +494,7 @@ const deliveryBlocksHtml = groupedLines.map((line, idx) => {
     <div class="section-head">備考・注意事項</div>
     <div class="note-box">${esc([
     ...(Array.isArray(delivery.remarks) ? delivery.remarks : []),
-    s.delivery_note || '',
-    s.customer_comment || ''
+    s.delivery_note || '',s
     ].filter(Boolean).join('\n'))}</div>
 
   <div class="section small">
