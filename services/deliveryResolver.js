@@ -60,7 +60,120 @@ const carrierLabel =
   shipment.carrier_id ||
   '';
 
-const normalizedContainers = (containers || []).map(c => ({
+// =====================================================
+// バイコン時：同一コンテナ番号の全SHIPMENT物量を合算
+// =====================================================
+
+let resolvedContainers = containers || [];
+
+const currentContainerNos = [
+  ...new Set(
+    resolvedContainers
+      .map(c => String(c.container_no || '').trim())
+      .filter(no => no && no !== '未定')
+  )
+];
+
+if (currentContainerNos.length > 0) {
+
+  // 現在のコンテナのうち、バイコン登録されているものを取得
+  const { data: biconRows, error: biconErr } = await supabase
+    .from('bicon_groups')
+    .select(`
+      bicon_group_id,
+      bicon_label,
+      container_no
+    `)
+    .in('container_no', currentContainerNos);
+
+  if (biconErr) throw biconErr;
+
+  const biconContainerNos = [
+    ...new Set(
+      (biconRows || [])
+        .map(b => String(b.container_no || '').trim())
+        .filter(Boolean)
+    )
+  ];
+
+  if (biconContainerNos.length > 0) {
+
+    // 同じ実コンテナ番号を持つ全SHIPMENTのコンテナ情報を取得
+    const { data: sharedContainers, error: sharedErr } = await supabase
+      .from('shipment_containers')
+      .select('*')
+      .in('container_no', biconContainerNos);
+
+    if (sharedErr) throw sharedErr;
+
+    // コンテナ番号ごとの合計
+    const totalMap = {};
+
+    (sharedContainers || []).forEach(c => {
+
+      const no =
+        String(c.container_no || '').trim();
+
+      if (!no) return;
+
+      if (!totalMap[no]) {
+        totalMap[no] = {
+          pcs: 0,
+          gw: 0,
+          cbm: 0,
+          pkg_unit: ''
+        };
+      }
+
+      totalMap[no].pcs +=
+        Number(c.pcs) || 0;
+
+      totalMap[no].gw +=
+        Number(c.gw) || 0;
+
+      totalMap[no].cbm +=
+        Number(c.cbm) || 0;
+
+      if (
+        !totalMap[no].pkg_unit &&
+        c.pkg_unit
+      ) {
+        totalMap[no].pkg_unit =
+          c.pkg_unit;
+      }
+    });
+
+    // 現在SHIPMENTのコンテナ情報だけ合計値へ差し替え
+    resolvedContainers =
+      resolvedContainers.map(c => {
+
+        const no =
+          String(c.container_no || '').trim();
+
+        const total =
+          totalMap[no];
+
+        if (!total) {
+          return c;
+        }
+
+        return {
+          ...c,
+
+          pcs: total.pcs,
+          gw: total.gw,
+          cbm: total.cbm,
+
+          pkg_unit:
+            total.pkg_unit ||
+            c.pkg_unit ||
+            ''
+        };
+      });
+  }
+}
+
+const normalizedContainers = (resolvedContainers || []).map(c => ({
   ...c,
   container_type_label:
     masterMap.CONTAINER_TYPE?.[c.container_type] ||
