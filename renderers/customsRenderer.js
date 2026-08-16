@@ -595,10 +595,13 @@ ${esc([
     ? `住所2：${delivery.delivery_address2}` : '',
   (delivery.delivery_tel || delivery.delivery_contact)
     ? `TEL/担当：${[delivery.delivery_tel, delivery.delivery_contact].filter(Boolean).join(' / ')}` : '',
-  (delivery.delivery_fixed || delivery.delivery_request_date)
-    ? `配送日：${delivery.delivery_fixed || delivery.delivery_request_date}` : '',
-  (delivery.delivery_fixed_time || delivery.delivery_request_time)
-    ? `配送時間：${delivery.delivery_fixed_time || delivery.delivery_request_time}` : ''
+  delivery.delivery_fixed
+   ? `配送日：${delivery.delivery_fixed}`
+   : '',
+
+ delivery.delivery_fixed && delivery.delivery_fixed_time
+   ? `配送時間：${delivery.delivery_fixed_time}`
+   : ''
 ].filter(Boolean).join('\n'))}
 </div>
   </div>
