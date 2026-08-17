@@ -4752,8 +4752,7 @@ if (deleteItemError) throw deleteItemError;
 if (items.length > 0) {
   const itemRows = items.map(item => ({
     item_id:
-      item.item_id ||
-      `ITM-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+     `ITM-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 
     shipment_id: savedShipmentId,
 
