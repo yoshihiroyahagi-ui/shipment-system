@@ -3022,6 +3022,7 @@ async function getLineDetail(lineId, customerCode) {
         ),
         job_no,
         status,
+        service_type_code,
         earliest_delivery_date,
         etd,
         eta,
