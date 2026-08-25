@@ -2587,6 +2587,7 @@ async function getMyLines(
       updated_at,
 
       vehicle_type,
+      vehicle_secured,
       carrier_name,
       vehicle_no,
       driver_name,
@@ -2816,6 +2817,16 @@ async function getMyLines(
     const deliveryCount =
       group.deliveryKeys.size || 1;
 
+    const deliveryFixedCount =
+  group.deliveryRows.filter(row =>
+    !!String(row.delivery_fixed || '').trim()
+  ).length;
+
+const vehicleSecuredCount =
+  group.deliveryRows.filter(row =>
+    row.vehicle_secured === true
+  ).length;
+
     const base =
       mapLineRow(
         group.baseRow,
@@ -2892,25 +2903,29 @@ async function getMyLines(
     }
 
     return {
-      ...base,
+  ...base,
 
-      // 商品明細そのものも返しておく
-      items,
+  items,
 
-      // 顧客ポータル一覧表示用
-      commodities,
+  commodities,
 
-      commodity_label:
-        commodities.join('\n'),
+  commodity_label:
+    commodities.join('\n'),
 
-      pts,
+  pts,
 
-      pt_label:
-        pts.join(', '),
+  pt_label:
+    pts.join(', '),
 
-      delivery_count:
-        deliveryCount
-    };
+  delivery_count:
+    deliveryCount,
+
+  delivery_fixed_count:
+    deliveryFixedCount,
+
+  vehicle_secured_count:
+    vehicleSecuredCount
+};
   });
 
   // =========================================================
