@@ -839,6 +839,7 @@ const { data: shipment, error: shipmentError } = await supabase
     delivery_data,
     earliest_delivery_date,
     vehicle_type,
+    vehicle_secured,
     vehicle_no,
     carrier_name,
     driver_name,
@@ -909,6 +910,7 @@ const { data: lineRows, error: lineError } = await supabase
     delivery_plan_time,
     remarks,
     vehicle_type,
+    vehicle_secured,
     carrier_name,
     vehicle_no,
     driver_name,
@@ -1032,11 +1034,24 @@ const mappedLines = lines.map(line => {
           : line.delivery_request_date
             ? (line.delivery_request_time || null)
             : null,
+    
+    delivery_date_confirmed:
+  !!line.delivery_fixed,
+
+vehicle_secured:
+  line.vehicle_secured === true,
+
+arrangement_completed:
+  !!line.delivery_fixed &&
+  line.vehicle_secured === true,
 
     vehicle_type:
       line.vehicle_type ||
       shipment.vehicle_type ||
       null,
+
+    vehicle_secured:
+      line.vehicle_secured === true,
 
     carrier_name:
       line.carrier_name ||
@@ -3815,6 +3830,63 @@ console.log('[broker debug]', {
     const shipmentIds = mappedWithBicon
       .map(r => String(r.shipment_id || '').trim())
       .filter(Boolean);
+    // =========================================================
+// 配送車両 手配状況集計
+// =========================================================
+let deliveryStatusMap = {};
+
+if (shipmentIds.length > 0) {
+  const { data: deliveryLineRows, error: deliveryLineError } =
+    await supabase
+      .from('shipment_lines')
+      .select(`
+        shipment_id,
+        delivery_dest_id,
+        delivery_request_date,
+        delivery_fixed,
+        delivery_plan_date,
+        vehicle_secured
+      `)
+      .in('shipment_id', shipmentIds);
+
+  if (deliveryLineError) throw deliveryLineError;
+
+  deliveryStatusMap = (deliveryLineRows || []).reduce((acc, line) => {
+    const shipmentId =
+      String(line.shipment_id || '').trim();
+
+    if (!shipmentId) return acc;
+
+    // 配送情報を持つlineだけを配送件数として扱う
+    const isDeliveryLine =
+      !!line.delivery_dest_id ||
+      !!line.delivery_request_date ||
+      !!line.delivery_plan_date ||
+      !!line.delivery_fixed;
+
+    if (!isDeliveryLine) return acc;
+
+    if (!acc[shipmentId]) {
+      acc[shipmentId] = {
+        delivery_count: 0,
+        vehicle_secured_count: 0,
+        delivery_fixed_count: 0
+      };
+    }
+
+    acc[shipmentId].delivery_count += 1;
+
+    if (line.vehicle_secured === true) {
+      acc[shipmentId].vehicle_secured_count += 1;
+    }
+
+    if (line.delivery_fixed) {
+      acc[shipmentId].delivery_fixed_count += 1;
+    }
+
+    return acc;
+  }, {});
+}
 
     let unreadActivityMap = {};
 
@@ -3837,11 +3909,33 @@ console.log('[broker debug]', {
       }, {});
     }
 
-    const mappedWithActivities = mappedWithBicon.map(row => ({
-      ...row,
-      unread_activity_count:
-        unreadActivityMap[String(row.shipment_id || '').trim()] || 0
-    }));
+    const mappedWithActivities = mappedWithBicon.map(row => {
+  const shipmentId =
+    String(row.shipment_id || '').trim();
+
+  const deliveryStatus =
+    deliveryStatusMap[shipmentId] || {
+      delivery_count: 0,
+      vehicle_secured_count: 0,
+      delivery_fixed_count: 0
+    };
+
+  return {
+    ...row,
+
+    unread_activity_count:
+      unreadActivityMap[shipmentId] || 0,
+
+    delivery_count:
+      deliveryStatus.delivery_count,
+
+    vehicle_secured_count:
+      deliveryStatus.vehicle_secured_count,
+
+    delivery_fixed_count:
+      deliveryStatus.delivery_fixed_count
+  };
+});
    
     res.json({
       ok: true,
@@ -5171,6 +5265,8 @@ const clean = (v) => {
         customer_ref_no: line.customer_ref_no || '',
 
         vehicle_type: line.vehicle_type || '',
+        vehicle_secured: line.vehicle_secured === true,
+
         carrier_name: line.carrier_name || '',
         vehicle_no: line.vehicle_no || '',
         driver_name: line.driver_name || '',
