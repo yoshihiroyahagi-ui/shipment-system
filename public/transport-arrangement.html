@@ -621,7 +621,6 @@
     }
 
     function editRequest(requestId) {
-    console.log('[EDIT TASKS]', tasks);
   if (!pageData) return;
 
   const request =
@@ -646,6 +645,8 @@
         Number(b.sort_no || 0)
       );
 
+  console.log('[EDIT TASKS]', tasks);
+  
   editingRequestId =
     request.transport_request_id;
 
