@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>詳細配送手配</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, "Yu Gothic", "Meiryo", sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .value {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .task-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    .cargo-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 0;
+    }
+
+    .cargo-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cargo-item input {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+
+    .request-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    @media (max-width: 900px) {
+      .summary-grid,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <div class="header">
+      <h1>詳細配送手配</h1>
+      <div class="spacer"></div>
+      <button class="btn" onclick="window.close()">閉じる</button>
+    </div>
+
+    <div class="card">
+      <div class="summary-grid">
+        <div>
+          <div class="label">JOB NO</div>
+          <div class="value" id="job-no">-</div>
+        </div>
+
+        <div>
+          <div class="label">Shipment ID</div>
+          <div class="value" id="shipment-id">-</div>
+        </div>
+
+        <div>
+          <div class="label">新規派生番号</div>
+          <div class="value" id="next-suffix">-</div>
+        </div>
+
+        <div>
+          <div class="label">新規依頼番号</div>
+          <div class="value" id="next-request-no">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="task-title">既存の詳細配送依頼</div>
+      <div id="request-list">
+        <div style="color:#94a3b8;">読み込み中...</div>
+      </div>
+    </div>
+
+    <div id="task-container"></div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn" onclick="addTask()">Task追加</button>
+      <button class="btn btn-primary" onclick="saveArrangement()">保存</button>
+    </div>
+
+  </div>
+
+  <script>
+    let pageData = null;
+    let taskSeq = 0;
+
+    const params =
+      new URLSearchParams(location.search);
+
+    const shipmentId =
+      params.get('shipment_id') || '';
+
+    if (!shipmentId) {
+      alert('shipment_id がありません');
+    }
+
+    async function apiFetch(url, options = {}) {
+      const res = await fetch(url, options);
+
+      const json = await res.json();
+
+      if (!res.ok || json.ok === false) {
+        throw new Error(
+          json.error ||
+          'API Error'
+        );
+      }
+
+      return json;
+    }
+
+    async function loadArrangement() {
+      try {
+        const res =
+          await apiFetch(
+            '/api/admin/transport-arrangement/' +
+            encodeURIComponent(shipmentId)
+          );
+
+        pageData = res;
+
+        document.getElementById('job-no').textContent =
+          res.shipment?.job_no || '-';
+
+        document.getElementById('shipment-id').textContent =
+          res.shipment?.shipment_id || '-';
+
+        document.getElementById('next-suffix').textContent =
+          res.next_suffix || '-';
+
+        document.getElementById('next-request-no').textContent =
+          res.next_request_no || '-';
+
+        renderRequestList(
+          res.requests || []
+        );
+
+        addTask();
+
+      } catch (err) {
+        console.error(err);
+        alert(err.message || '読み込みに失敗しました');
+      }
+    }
+
+    function renderRequestList(requests) {
+      const container =
+        document.getElementById('request-list');
+
+      if (!requests.length) {
+        container.innerHTML =
+          '<div style="color:#94a3b8;">既存依頼はありません</div>';
+        return;
+      }
+
+      container.innerHTML =
+        requests.map(function(r) {
+          return (
+            '<div class="request-row">' +
+              '<strong>' +
+                escapeHtml(r.request_no || '-') +
+              '</strong>' +
+
+              '<span>' +
+                escapeHtml(r.status || '') +
+              '</span>' +
+
+              '<button class="btn" ' +
+                'onclick="editRequest(\'' +
+                  escapeJs(r.transport_request_id || '') +
+                '\')">' +
+                '編集' +
+              '</button>' +
+            '</div>'
+          );
+        }).join('');
+    }
+
+    function addTask() {
+      taskSeq += 1;
+
+      const container =
+        document.getElementById('task-container');
+
+      const div =
+        document.createElement('div');
+
+      div.className = 'card transport-task';
+      div.dataset.taskIndex = String(taskSeq);
+
+      div.innerHTML =
+        buildTaskHtml(taskSeq);
+
+      container.appendChild(div);
+    }
+
+    function buildTaskHtml(index) {
+      const truckerOptions =
+        (pageData?.truckers || [])
+          .map(t =>
+            '<option value="' +
+              escapeHtml(t.partner_code || '') +
+            '">' +
+              escapeHtml(t.partner_name || t.partner_code || '') +
+            '</option>'
+          )
+          .join('');
+
+      const pickupOptions =
+        (pageData?.pickup_places || [])
+          .map(p =>
+            '<option value="' +
+              escapeHtml(p.place_id || '') +
+            '">' +
+              escapeHtml(p.place_name || p.place_id || '') +
+            '</option>'
+          )
+          .join('');
+
+      const deliveryOptions =
+        (pageData?.delivery_lines || [])
+          .map(line =>
+            '<option value="' +
+              escapeHtml(line.line_id || '') +
+            '">' +
+              escapeHtml(
+                line.delivery_dest_name ||
+                line.delivery_dest_short ||
+                line.line_id ||
+                ''
+              ) +
+            '</option>'
+          )
+          .join('');
+
+      const cargoHtml =
+        (pageData?.containers || [])
+          .map(c =>
+            '<label class="cargo-item">' +
+              '<input type="checkbox" ' +
+                'data-container-no="' +
+                  escapeHtml(c.container_no || '') +
+                '">' +
+              '<span>' +
+                escapeHtml(
+                  [
+                    c.container_no,
+                    c.container_type
+                  ]
+                    .filter(Boolean)
+                    .join(' / ')
+                ) +
+              '</span>' +
+            '</label>'
+          )
+          .join('');
+
+      return (
+        '<div class="task-title">' +
+          'Task ' + index +
+        '</div>' +
+
+        '<div class="grid-3">' +
+
+          '<div class="input-group">' +
+            '<label class="label">配送業者</label>' +
+            '<select data-field="trucker_code">' +
+              '<option value="">選択してください</option>' +
+              truckerOptions +
+            '</select>' +
+          '</div>' +
+
+          '<div class="input-group">' +
+            '<label class="label">引取場所</label>' +
+            '<select data-field="pickup_place_id">' +
+              '<option value="">選択してください</option>' +
+              pickupOptions +
+            '</select>' +
+          '</div>' +
+
+          '<div class="input-group">' +
+            '<label class="label">配送先</label>' +
+            '<select data-field="delivery_line_id">' +
+              '<option value="">選択してください</option>' +
+              deliveryOptions +
+            '</select>' +
+          '</div>' +
+
+        '</div>' +
+
+        '<div class="grid-3">' +
+
+          '<div class="input-group">' +
+            '<label class="label">引取日</label>' +
+            '<input type="date" data-field="pickup_date">' +
+          '</div>' +
+
+          '<div class="input-group">' +
+            '<label class="label">引取時間</label>' +
+            '<input type="time" data-field="pickup_time">' +
+          '</div>' +
+
+          '<div class="input-group">' +
+            '<label class="label">車種</label>' +
+            '<input type="text" data-field="vehicle_type">' +
+          '</div>' +
+
+        '</div>' +
+
+        '<div class="input-group">' +
+          '<label class="label">対象コンテナ</label>' +
+          '<div class="cargo-list">' +
+            cargoHtml +
+          '</div>' +
+        '</div>' +
+
+        '<div class="input-group">' +
+          '<label class="label">備考</label>' +
+          '<textarea rows="3" data-field="remarks"></textarea>' +
+        '</div>'
+      );
+    }
+
+    function escapeHtml(v) {
+      return String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeJs(v) {
+      return String(v ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+    }
+
+    function editRequest(requestId) {
+      alert(
+        '編集機能は次の段階で追加します: ' +
+        requestId
+      );
+    }
+
+    async function saveArrangement() {
+      alert('保存処理は次に接続します');
+    }
+
+    loadArrangement();
+  </script>
+</body>
+</html>

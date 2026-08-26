@@ -24,6 +24,11 @@ export function buildDeliveryHtmlFromPayload(data = {}) {
   const s = data.shipment || {};
   const lines = data.lines || [];
   const normalizedLines = [];
+  const requestNo =
+  data.transport_request?.request_no ||
+  s.job_no ||
+  s.shipment_id ||
+  '';
 
 
 for (const line of (lines || [])) {
@@ -380,7 +385,7 @@ const deliveryBlocksHtml = groupedLines.map((line, idx) => {
   
   <div class="grid">
     <div class="label">JOB NO</div>
-    <div class="value">${esc(s.job_no || s.shipment_id)}</div>
+    <div class="value">${esc(requestNo)}</div>
     <div class="label">依頼日</div>
     <div class="value">${esc(data.request_date || '')}</div>
 

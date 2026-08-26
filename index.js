@@ -10748,6 +10748,526 @@ app.get('/api/customer/line-items', async (req, res) => {
     });
   }
 });
+app.get('/api/admin/transport-arrangement/:shipmentId', async (req, res) => {
+  try {
+    const shipmentId =
+      String(req.params.shipmentId || '').trim();
+
+    if (!shipmentId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'shipmentId is required'
+      });
+    }
+
+    // =====================================================
+    // Shipment
+    // =====================================================
+    const { data: shipment, error: shipmentErr } = await supabase
+      .from('shipments')
+      .select(`
+        shipment_id,
+        job_no,
+        customer_code,
+        trucker_code,
+        carrier_id,
+        vessel,
+        voyage,
+        eta,
+        etd,
+        cargo_pickup_location_id,
+        vehicle_type
+      `)
+      .eq('shipment_id', shipmentId)
+      .maybeSingle();
+
+    if (shipmentErr) throw shipmentErr;
+
+    if (!shipment) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Shipment not found'
+      });
+    }
+
+    // =====================================================
+    // Containers
+    // =====================================================
+    const { data: containers, error: containerErr } = await supabase
+      .from('shipment_containers')
+      .select(`
+        container_id,
+        container_no,
+        container_type,
+        seal_no,
+        pcs,
+        pkg_unit,
+        gw,
+        cbm,
+        sort_no
+      `)
+      .eq('shipment_id', shipmentId)
+      .order('sort_no', { ascending: true });
+
+    if (containerErr) throw containerErr;
+
+    // =====================================================
+    // Delivery Lines
+    // =====================================================
+    const { data: deliveryLines, error: lineErr } = await supabase
+      .from('shipment_lines')
+      .select(`
+        line_id,
+        delivery_dest_id,
+        delivery_dest_short,
+        delivery_request_date,
+        delivery_request_time,
+        delivery_plan_date,
+        delivery_plan_time,
+        delivery_fixed,
+        delivery_fixed_time,
+        vehicle_type,
+        carrier_name,
+        vehicle_no,
+        driver_name,
+        driver_phone,
+        delivery_note,
+
+        dests:delivery_dest_id (
+          dest_id,
+          dest_name,
+          d_address1,
+          d_address2,
+          d_tel,
+          d_contact_person
+        )
+      `)
+      .eq('shipment_id', shipmentId)
+      .order('line_id', { ascending: true });
+
+    if (lineErr) throw lineErr;
+
+    // =====================================================
+    // Pickup Places
+    // =====================================================
+    const { data: pickupPlaces, error: pickupErr } = await supabase
+      .from('inbound_place_master')
+      .select(`
+        place_id,
+        place_name,
+        line1,
+        line2,
+        line3,
+        line4
+      `)
+      .order('place_name', { ascending: true });
+
+    if (pickupErr) throw pickupErr;
+
+    // =====================================================
+    // Truckers
+    // =====================================================
+    const { data: truckers, error: truckerErr } = await supabase
+      .from('partners')
+      .select(`
+        partner_code,
+        partner_name,
+        partner_type
+      `)
+      .eq('partner_type', 'TRUCKER')
+      .order('partner_name', { ascending: true });
+
+    if (truckerErr) throw truckerErr;
+
+    // =====================================================
+    // Existing Transport Requests
+    // =====================================================
+    const { data: requests, error: requestErr } = await supabase
+      .from('transport_requests')
+      .select(`
+        transport_request_id,
+        shipment_id,
+        request_no,
+        request_suffix,
+        request_type,
+        status,
+        remarks,
+        created_at,
+        updated_at
+      `)
+      .eq('shipment_id', shipmentId)
+      .order('created_at', { ascending: true });
+
+    if (requestErr) throw requestErr;
+
+    // =====================================================
+    // 次の派生番号を作る
+    // =====================================================
+    const usedSuffixes =
+      (requests || [])
+        .map(r =>
+          String(r.request_suffix || '')
+            .trim()
+            .toUpperCase()
+        )
+        .filter(Boolean);
+
+    let nextSuffix = 'A';
+
+    for (let i = 0; i < 26; i++) {
+      const candidate =
+        String.fromCharCode(65 + i);
+
+      if (!usedSuffixes.includes(candidate)) {
+        nextSuffix = candidate;
+        break;
+      }
+    }
+
+    const nextRequestNo =
+      `${shipment.job_no || shipmentId}-${nextSuffix}`;
+
+    // =====================================================
+    // Normalize
+    // =====================================================
+    const normalizedLines =
+      (deliveryLines || []).map(line => {
+        const d = line.dests || {};
+
+        return {
+          ...line,
+
+          delivery_dest_name:
+            d.dest_name ||
+            line.delivery_dest_short ||
+            '',
+
+          delivery_address:
+            [
+              d.d_address1,
+              d.d_address2
+            ]
+              .filter(Boolean)
+              .join('\n'),
+
+          delivery_tel:
+            d.d_tel || '',
+
+          delivery_contact:
+            d.d_contact_person || ''
+        };
+      });
+
+    const normalizedPickupPlaces =
+      (pickupPlaces || []).map(place => ({
+        ...place,
+
+        display_address:
+          [
+            place.line1,
+            place.line2,
+            place.line3,
+            place.line4
+          ]
+            .filter(Boolean)
+            .join('\n')
+      }));
+
+    return res.json({
+      ok: true,
+
+      shipment,
+
+      containers:
+        containers || [],
+
+      delivery_lines:
+        normalizedLines,
+
+      pickup_places:
+        normalizedPickupPlaces,
+
+      truckers:
+        truckers || [],
+
+      requests:
+        requests || [],
+
+      next_suffix:
+        nextSuffix,
+
+      next_request_no:
+        nextRequestNo
+    });
+
+  } catch (err) {
+    console.error(
+      'GET /api/admin/transport-arrangement/:shipmentId error:',
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error:
+        err.message ||
+        'Transport arrangement load failed'
+    });
+  }
+});
+app.post('/api/admin/transport-arrangement', async (req, res) => {
+  try {
+    const {
+      shipment_id,
+      transport_request_id,
+      request_no,
+      request_suffix,
+      request_type = 'ADVANCED',
+      status = 'DRAFT',
+      remarks = '',
+      tasks = []
+    } = req.body || {};
+
+    if (!shipment_id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'shipment_id is required'
+      });
+    }
+
+    if (!request_no) {
+      return res.status(400).json({
+        ok: false,
+        error: 'request_no is required'
+      });
+    }
+
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'At least one transport task is required'
+      });
+    }
+
+    // =====================================================
+    // Transport Request ID
+    // =====================================================
+    const requestId =
+      transport_request_id ||
+      ('TRQ-' +
+        Date.now() +
+        '-' +
+        Math.random().toString(36).slice(2, 8));
+
+    const nowIso =
+      new Date().toISOString();
+
+    // =====================================================
+    // Request保存
+    // =====================================================
+    const requestPayload = {
+      transport_request_id: requestId,
+      shipment_id,
+      request_no,
+      request_suffix: request_suffix || null,
+      request_type,
+      status,
+      remarks,
+      updated_at: nowIso
+    };
+
+    const {
+      data: existingRequest,
+      error: existingRequestErr
+    } = await supabase
+      .from('transport_requests')
+      .select('transport_request_id')
+      .eq('transport_request_id', requestId)
+      .maybeSingle();
+
+    if (existingRequestErr) {
+      throw existingRequestErr;
+    }
+
+    if (existingRequest) {
+      const { error: updateRequestErr } =
+        await supabase
+          .from('transport_requests')
+          .update(requestPayload)
+          .eq(
+            'transport_request_id',
+            requestId
+          );
+
+      if (updateRequestErr) {
+        throw updateRequestErr;
+      }
+
+    } else {
+      const { error: insertRequestErr } =
+        await supabase
+          .from('transport_requests')
+          .insert({
+            ...requestPayload,
+            created_at: nowIso
+          });
+
+      if (insertRequestErr) {
+        throw insertRequestErr;
+      }
+    }
+
+    // =====================================================
+    // 既存Taskを一旦削除
+    // 編集時は全置換方式
+    // =====================================================
+    const { error: deleteTaskErr } =
+      await supabase
+        .from('transport_tasks')
+        .delete()
+        .eq(
+          'transport_request_id',
+          requestId
+        );
+
+    if (deleteTaskErr) {
+      throw deleteTaskErr;
+    }
+
+    // =====================================================
+    // Task保存
+    // =====================================================
+    const taskRows =
+      tasks.map((task, index) => {
+
+        const taskId =
+          task.transport_task_id ||
+          ('TASK-' +
+            Date.now() +
+            '-' +
+            index +
+            '-' +
+            Math.random()
+              .toString(36)
+              .slice(2, 8));
+
+        return {
+          transport_task_id:
+            taskId,
+
+          transport_request_id:
+            requestId,
+
+          shipment_id,
+
+          sort_no:
+            Number(task.sort_no || index + 1),
+
+          trucker_code:
+            task.trucker_code || null,
+
+          pickup_place_id:
+            task.pickup_place_id || null,
+
+          pickup_place_name:
+            task.pickup_place_name || null,
+
+          pickup_address:
+            task.pickup_address || null,
+
+          pickup_date:
+            task.pickup_date || null,
+
+          pickup_time:
+            task.pickup_time || null,
+
+          delivery_place_name:
+            task.delivery_place_name || null,
+
+          delivery_address:
+            task.delivery_address || null,
+
+          delivery_date:
+            task.delivery_date || null,
+
+          delivery_time:
+            task.delivery_time || null,
+
+          vehicle_type:
+            task.vehicle_type || null,
+
+          cargo_type:
+            task.cargo_type || null,
+
+          cargo_ref:
+            task.cargo_ref || null,
+
+          cargo_refs:
+            Array.isArray(task.cargo_refs)
+              ? task.cargo_refs
+              : [],
+
+          quantity:
+            task.quantity === '' ||
+            task.quantity === null ||
+            task.quantity === undefined
+              ? null
+              : Number(task.quantity),
+
+          unit:
+            task.unit || null,
+
+          remarks:
+            task.remarks || null,
+
+          created_at:
+            nowIso,
+
+          updated_at:
+            nowIso
+        };
+      });
+
+    const { error: insertTaskErr } =
+      await supabase
+        .from('transport_tasks')
+        .insert(taskRows);
+
+    if (insertTaskErr) {
+      throw insertTaskErr;
+    }
+
+    // =====================================================
+    // Return
+    // =====================================================
+    return res.json({
+      ok: true,
+
+      transport_request_id:
+        requestId,
+
+      request_no,
+
+      task_count:
+        taskRows.length,
+
+      message:
+        '詳細配送手配を保存しました。'
+    });
+
+  } catch (err) {
+    console.error(
+      'POST /api/admin/transport-arrangement error:',
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error:
+        err.message ||
+        'Transport arrangement save failed'
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
