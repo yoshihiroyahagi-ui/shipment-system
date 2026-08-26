@@ -17,7 +17,7 @@ import { resolveDeliveryPayload } from './services/deliveryResolver.js';
 import { resolveInvoicePayloadByInvoiceId } from './services/invoiceResolver.js';
 import { renderInvoiceHtml } from './renderers/invoiceRenderer.js';
 import { renderTotalInvoiceHtml } from './renderers/totalInvoiceRenderer.js';
-import { resolveAdvancedDeliveryPayload } from './service/advancedDeliveryResolver.js';
+import { resolveAdvancedDeliveryPayload } from './services/advancedDeliveryResolver.js';
 
 const app = express();
 
