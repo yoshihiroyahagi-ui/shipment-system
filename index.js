@@ -6868,20 +6868,33 @@ app.post('/api/admin/save-customs-data', async (req, res) => {
 
 app.post('/api/doc-token', async (req, res) => {
   try {
-    const { shipment_id, doc_type } = req.body || {};
+    const {
+      shipment_id,
+      doc_type,
+      transport_request_id
+    } = req.body || {};
 
     if (!shipment_id) {
-      return res.status(400).json({ ok: false, error: 'shipment_id is required' });
+      return res.status(400).json({
+        ok: false,
+        error: 'shipment_id is required'
+      });
     }
 
     if (!['an', 'customs', 'delivery'].includes(doc_type)) {
-      return res.status(400).json({ ok: false, error: 'invalid doc_type' });
+      return res.status(400).json({
+        ok: false,
+        error: 'invalid doc_type'
+      });
     }
 
-    const token = crypto.randomBytes(24).toString('hex');
+    const token =
+      crypto.randomBytes(24).toString('hex');
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
+    expiresAt.setDate(
+      expiresAt.getDate() + 30
+    );
 
     const { error } = await supabase
       .from('document_access_tokens')
@@ -6894,15 +6907,44 @@ app.post('/api/doc-token', async (req, res) => {
 
     if (error) throw error;
 
-    const baseUrl = 'https://portal.bizlabo-tokyo.com';
+    const baseUrl =
+      'https://portal.bizlabo-tokyo.com';
+
+    const params =
+      new URLSearchParams({
+        shipment_id,
+        token
+      });
+
+    if (
+      doc_type === 'delivery' &&
+      transport_request_id
+    ) {
+      params.set(
+        'transport_request_id',
+        transport_request_id
+      );
+    }
 
     return res.json({
       ok: true,
-      url: `${baseUrl}/doc/${doc_type}?shipment_id=${encodeURIComponent(shipment_id)}&token=${encodeURIComponent(token)}`
+      token,
+      url:
+        `${baseUrl}/doc/${doc_type}?${params.toString()}`
     });
+
   } catch (err) {
-    console.error('[doc-token] error:', err);
-    return res.status(500).json({ ok: false, error: err.message || String(err) });
+    console.error(
+      '[doc-token] error:',
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error:
+        err.message ||
+        String(err)
+    });
   }
 });
 

@@ -253,37 +253,46 @@
     }
 
     function renderRequestList(requests) {
-      const container =
-        document.getElementById('request-list');
+  const container =
+    document.getElementById('request-list');
 
-      if (!requests.length) {
-        container.innerHTML =
-          '<div style="color:#94a3b8;">既存依頼はありません</div>';
-        return;
-      }
+  if (!requests.length) {
+    container.innerHTML =
+      '<div style="color:#94a3b8;">既存依頼はありません</div>';
+    return;
+  }
 
-      container.innerHTML =
-        requests.map(function(r) {
-          return (
-            '<div class="request-row">' +
-              '<strong>' +
-                escapeHtml(r.request_no || '-') +
-              '</strong>' +
+  container.innerHTML =
+    requests.map(function(r) {
+      return (
+        '<div class="request-row">' +
 
-              '<span>' +
-                escapeHtml(r.status || '') +
-              '</span>' +
+          '<strong>' +
+            escapeHtml(r.request_no || '-') +
+          '</strong>' +
 
-              '<button class="btn" ' +
-                'onclick="editRequest(\'' +
-                  escapeJs(r.transport_request_id || '') +
-                '\')">' +
-                '編集' +
-              '</button>' +
-            '</div>'
-          );
-        }).join('');
-    }
+          '<span>' +
+            escapeHtml(r.status || '') +
+          '</span>' +
+
+          '<button class="btn" ' +
+            'onclick="editRequest(\'' +
+              escapeJs(r.transport_request_id || '') +
+            '\')">' +
+            '編集' +
+          '</button>' +
+
+          '<button class="btn" ' +
+            'onclick="openDeliveryRequest(\'' +
+              escapeJs(r.transport_request_id || '') +
+            '\')">' +
+            '依頼書を開く' +
+          '</button>' +
+
+        '</div>'
+      );
+    }).join('');
+}
 
     function addTask() {
       taskSeq += 1;
@@ -450,6 +459,71 @@
         requestId
       );
     }
+
+    async function openDeliveryRequest(
+  transportRequestId
+) {
+  try {
+    if (!transportRequestId) {
+      return alert(
+        'transport_request_id がありません'
+      );
+    }
+
+    if (!pageData?.shipment?.shipment_id) {
+      return alert(
+        'shipment_id がありません'
+      );
+    }
+
+    const result =
+      await apiFetch(
+        '/api/doc-token',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+
+          body:
+            JSON.stringify({
+              shipment_id:
+                pageData.shipment.shipment_id,
+
+              doc_type:
+                'delivery',
+
+              transport_request_id:
+                transportRequestId
+            })
+        }
+      );
+
+    if (!result.url) {
+      return alert(
+        '配送依頼書URLを取得できません'
+      );
+    }
+
+    window.open(
+      result.url,
+      '_blank'
+    );
+
+  } catch (err) {
+    console.error(
+      'openDeliveryRequest error:',
+      err
+    );
+
+    alert(
+      err.message ||
+      '配送依頼書を開けませんでした'
+    );
+  }
+}
 
     async function saveArrangement() {
   try {
