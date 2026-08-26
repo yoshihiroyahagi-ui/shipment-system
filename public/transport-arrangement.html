@@ -325,31 +325,54 @@
           .join('');
 
       const pickupOptions =
-        (pageData?.pickup_places || [])
-          .map(p =>
-            '<option value="' +
-              escapeHtml(p.place_id || '') +
-            '">' +
-              escapeHtml(p.place_name || p.place_id || '') +
-            '</option>'
-          )
-          .join('');
+  [
+    '<optgroup label="搬入・引取場所">',
+
+    ...(pageData?.pickup_places || []).map(p =>
+      '<option value="INBOUND:' +
+        escapeHtml(p.place_id || '') +
+      '">' +
+        escapeHtml(
+          p.place_name ||
+          p.place_id ||
+          ''
+        ) +
+      '</option>'
+    ),
+
+    '</optgroup>',
+
+    '<optgroup label="配送先マスタ">',
+
+    ...(pageData?.dests || []).map(d =>
+      '<option value="DEST:' +
+        escapeHtml(d.dest_id || '') +
+      '">' +
+        escapeHtml(
+          d.dest_name ||
+          d.dest_id ||
+          ''
+        ) +
+      '</option>'
+    ),
+
+    '</optgroup>'
+  ].join('');
 
       const deliveryOptions =
-        (pageData?.delivery_lines || [])
-          .map(line =>
-            '<option value="' +
-              escapeHtml(line.line_id || '') +
-            '">' +
-              escapeHtml(
-                line.delivery_dest_name ||
-                line.delivery_dest_short ||
-                line.line_id ||
-                ''
-              ) +
-            '</option>'
-          )
-          .join('');
+  (pageData?.dests || [])
+    .map(dest =>
+      '<option value="' +
+        escapeHtml(dest.dest_id || '') +
+      '">' +
+        escapeHtml(
+          dest.dest_name ||
+          dest.dest_id ||
+          ''
+        ) +
+      '</option>'
+    )
+    .join('');
 
       const cargoHtml =
         (pageData?.containers || [])
@@ -398,7 +421,7 @@
 
           '<div class="input-group">' +
             '<label class="label">配送先</label>' +
-            '<select data-field="delivery_line_id">' +
+            '<select data-field="delivery_dest_id">' +
               '<option value="">選択してください</option>' +
               deliveryOptions +
             '</select>' +
@@ -580,15 +603,15 @@
       // ===================================================
       // 配送先
       // ===================================================
-      const deliveryLineId =
-        getValue('delivery_line_id');
+      const deliveryDestId =
+  getValue('delivery_dest_id');
 
-      if (deliveryLineId) {
-        cargoRefs.push({
-          type: 'DELIVERY',
-          id: deliveryLineId
-        });
-      }
+const deliveryDest =
+  (pageData.dests || [])
+    .find(function(dest) {
+      return String(dest.dest_id) ===
+        String(deliveryDestId);
+    });
 
       const deliveryLine =
         (pageData.delivery_lines || [])
@@ -597,15 +620,61 @@
               String(deliveryLineId);
           });
 
-      const pickupPlaceId =
-        getValue('pickup_place_id');
+      // ===================================================
+// 引取場所
+// INBOUND = inbound_place_master
+// DEST    = dests
+// ===================================================
+const pickupSource =
+  getValue('pickup_place_id');
 
-      const pickupPlace =
-        (pageData.pickup_places || [])
-          .find(function(place) {
-            return String(place.place_id) ===
-              String(pickupPlaceId);
-          });
+let pickupPlaceId = null;
+let pickupPlaceName = null;
+let pickupAddress = null;
+
+
+// inbound_place_master から選択した場合
+if (pickupSource.startsWith('INBOUND:')) {
+
+  pickupPlaceId =
+    pickupSource.replace('INBOUND:', '');
+
+  const pickupPlace =
+    (pageData.pickup_places || [])
+      .find(function(place) {
+        return String(place.place_id) ===
+          String(pickupPlaceId);
+      });
+
+  pickupPlaceName =
+    pickupPlace?.place_name || null;
+
+  pickupAddress =
+    pickupPlace?.display_address || null;
+
+
+// dests から選択した場合
+} else if (pickupSource.startsWith('DEST:')) {
+
+  const destId =
+    pickupSource.replace('DEST:', '');
+
+  const pickupDest =
+    (pageData.dests || [])
+      .find(function(dest) {
+        return String(dest.dest_id) ===
+          String(destId);
+      });
+
+  // inbound_place_master のIDではないのでnull
+  pickupPlaceId = null;
+
+  pickupPlaceName =
+    pickupDest?.dest_name || null;
+
+  pickupAddress =
+    pickupDest?.display_address || null;
+}
 
       tasks.push({
         sort_no: index + 1,
@@ -614,13 +683,13 @@
           getValue('trucker_code') || null,
 
         pickup_place_id:
-          pickupPlaceId || null,
+           pickupPlaceId,
 
         pickup_place_name:
-          pickupPlace?.place_name || null,
+          pickupPlaceName,
 
         pickup_address:
-          pickupPlace?.display_address || null,
+          pickupAddress,
 
         pickup_date:
           getValue('pickup_date') || null,

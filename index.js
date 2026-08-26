@@ -10906,6 +10906,36 @@ app.get('/api/admin/transport-arrangement/:shipmentId', async (req, res) => {
     if (pickupErr) throw pickupErr;
 
     // =====================================================
+// Delivery Destinations
+// =====================================================
+const { data: destRows, error: destErr } = await supabase
+  .from('dests')
+  .select(`
+    dest_id,
+    dest_name,
+    d_address1,
+    d_address2,
+    d_tel,
+    d_contact_person
+  `)
+  .order('dest_name', { ascending: true });
+
+if (destErr) throw destErr;
+
+const normalizedDests =
+  (destRows || []).map(dest => ({
+    ...dest,
+
+    display_address:
+      [
+        dest.d_address1,
+        dest.d_address2
+      ]
+        .filter(Boolean)
+        .join('\n')
+  }));
+
+    // =====================================================
     // Truckers
     // =====================================================
     const { data: truckers, error: truckerErr } = await supabase
@@ -11027,6 +11057,9 @@ app.get('/api/admin/transport-arrangement/:shipmentId', async (req, res) => {
 
       pickup_places:
         normalizedPickupPlaces,
+
+      dests:
+        normalizedDests,
 
       truckers:
         truckers || [],
