@@ -388,84 +388,119 @@
   // 配送業者 options
   // =====================================================
   const truckerOptions =
-    (pageData?.truckers || [])
-      .map(t => {
+  (pageData?.truckers || [])
+    .map(t => {
+      const code = String(t.partner_code || '');
 
-        const code =
-          String(t.partner_code || '');
+      const selected =
+        code === selectedTrucker
+          ? ' selected'
+          : '';
 
-        const selected =
-          code === selectedTrucker
-            ? ' selected'
-            : '';
-
-        return (
-          '<option value="' +
-            escapeHtml(code) +
-            '"' +
-            selected +
-          '>' +
-            escapeHtml(
-              t.partner_name ||
-              t.partner_code ||
-              ''
-            ) +
-          '</option>'
-        );
-      })
-      .join('');
+      return (
+        '<option value="' +
+          escapeHtml(code) +
+          '"' +
+          selected +
+        '>' +
+          escapeHtml(
+            t.partner_name ||
+            t.partner_code ||
+            ''
+          ) +
+        '</option>'
+      );
+    })
+    .join('');
 
       const pickupOptions =
   [
     '<optgroup label="搬入・引取場所">',
 
-    ...(pageData?.pickup_places || []).map(p =>
-      '<option value="INBOUND:' +
-        escapeHtml(p.place_id || '') +
-      '">' +
-        escapeHtml(
-          p.place_name ||
-          p.place_id ||
-          ''
-        ) +
-      '</option>'
-    ),
+    ...(pageData?.pickup_places || []).map(p => {
+      const value =
+        'INBOUND:' + String(p.place_id || '');
+
+      const selected =
+        value === selectedPickupSource
+          ? ' selected'
+          : '';
+
+      return (
+        '<option value="' +
+          escapeHtml(value) +
+          '"' +
+          selected +
+        '>' +
+          escapeHtml(
+            p.place_name ||
+            p.place_id ||
+            ''
+          ) +
+        '</option>'
+      );
+    }),
 
     '</optgroup>',
 
     '<optgroup label="配送先マスタ">',
 
-    ...(pageData?.dests || []).map(d =>
-      '<option value="DEST:' +
-        escapeHtml(d.dest_id || '') +
-      '">' +
-        escapeHtml(
-          d.dest_name ||
-          d.dest_id ||
-          ''
-        ) +
-      '</option>'
-    ),
+    ...(pageData?.dests || []).map(d => {
+      const value =
+        'DEST:' + String(d.dest_id || '');
+
+      const selected =
+        value === selectedPickupSource
+          ? ' selected'
+          : '';
+
+      return (
+        '<option value="' +
+          escapeHtml(value) +
+          '"' +
+          selected +
+        '>' +
+          escapeHtml(
+            d.dest_name ||
+            d.dest_id ||
+            ''
+          ) +
+        '</option>'
+      );
+    }),
 
     '</optgroup>'
   ].join('');
 
       const deliveryOptions =
   (pageData?.dests || [])
-    .map(dest =>
-      '<option value="' +
-        escapeHtml(dest.dest_id || '') +
-      '">' +
-        escapeHtml(
-          dest.dest_name ||
-          dest.dest_id ||
-          ''
-        ) +
-      '</option>'
-    )
+    .map(dest => {
+      const destId =
+        String(dest.dest_id || '');
+
+      const selected =
+        destId ===
+        String(selectedDeliveryDestId || '')
+          ? ' selected'
+          : '';
+
+      return (
+        '<option value="' +
+          escapeHtml(destId) +
+          '"' +
+          selected +
+        '>' +
+          escapeHtml(
+            dest.dest_name ||
+            dest.dest_id ||
+            ''
+          ) +
+        '</option>'
+      );
+    })
     .join('');
 
-      const cargoHtml =
+    const cargoHtml =
   (pageData?.containers || [])
     .map(c => {
       const containerNo =
@@ -586,6 +621,7 @@
     }
 
     function editRequest(requestId) {
+    console.log('[EDIT TASKS]', tasks);
   if (!pageData) return;
 
   const request =
