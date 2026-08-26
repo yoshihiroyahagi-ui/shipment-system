@@ -10796,7 +10796,6 @@ app.get('/api/admin/transport-arrangement/:shipmentId', async (req, res) => {
     const { data: containers, error: containerErr } = await supabase
       .from('shipment_containers')
       .select(`
-        container_id,
         container_no,
         container_type,
         seal_no,
