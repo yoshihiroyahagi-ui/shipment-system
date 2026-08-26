@@ -780,13 +780,6 @@ const deliveryDest =
         String(deliveryDestId);
     });
 
-      const deliveryLine =
-        (pageData.delivery_lines || [])
-          .find(function(line) {
-            return String(line.line_id) ===
-              String(deliveryLineId);
-          });
-
       // ===================================================
 // 引取場所
 // INBOUND = inbound_place_master
