@@ -10972,6 +10972,31 @@ const normalizedDests =
     if (requestErr) throw requestErr;
 
     // =====================================================
+// Existing Transport Tasks
+// =====================================================
+let transportTasks = [];
+
+const requestIds =
+  (requests || [])
+    .map(r =>
+      String(r.transport_request_id || '').trim()
+    )
+    .filter(Boolean);
+
+if (requestIds.length > 0) {
+  const { data: taskRows, error: taskErr } =
+    await supabase
+      .from('transport_tasks')
+      .select('*')
+      .in('transport_request_id', requestIds)
+      .order('sort_no', { ascending: true });
+
+  if (taskErr) throw taskErr;
+
+  transportTasks = taskRows || [];
+}
+
+    // =====================================================
     // 次の派生番号を作る
     // =====================================================
     const usedSuffixes =
@@ -11066,6 +11091,9 @@ const normalizedDests =
 
       requests:
         requests || [],
+
+      transport_tasks:
+        transportTasks,
 
       next_suffix:
         nextSuffix,

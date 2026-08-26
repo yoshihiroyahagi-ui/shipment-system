@@ -192,6 +192,7 @@
   <script>
     let pageData = null;
     let taskSeq = 0;
+    let editingRequestId = null;
 
     const params =
       new URLSearchParams(location.search);
@@ -312,17 +313,107 @@
       container.appendChild(div);
     }
 
-    function buildTaskHtml(index) {
-      const truckerOptions =
-        (pageData?.truckers || [])
-          .map(t =>
-            '<option value="' +
-              escapeHtml(t.partner_code || '') +
-            '">' +
-              escapeHtml(t.partner_name || t.partner_code || '') +
-            '</option>'
-          )
-          .join('');
+    function buildTaskHtml(index, task = null) {
+
+  task = task || {};
+
+  const selectedTrucker =
+    String(task.trucker_code || '');
+
+  const selectedPickupId =
+    String(task.pickup_place_id || '');
+
+  const selectedPickupName =
+    String(task.pickup_place_name || '');
+
+  const selectedDeliveryName =
+    String(task.delivery_place_name || '');
+
+
+  // 引取先の復元値
+  let selectedPickupSource = '';
+
+  if (selectedPickupId) {
+
+    selectedPickupSource =
+      'INBOUND:' + selectedPickupId;
+
+  } else if (selectedPickupName) {
+
+    const matchedDest =
+      (pageData?.dests || [])
+        .find(d =>
+          String(d.dest_name || '') ===
+          selectedPickupName
+        );
+
+    if (matchedDest) {
+      selectedPickupSource =
+        'DEST:' + matchedDest.dest_id;
+    }
+  }
+
+
+  // 配送先の復元値
+  const selectedDeliveryDest =
+    (pageData?.dests || [])
+      .find(d =>
+        String(d.dest_name || '') ===
+        selectedDeliveryName
+      );
+
+  const selectedDeliveryDestId =
+    selectedDeliveryDest?.dest_id || '';
+
+
+  // 選択済みコンテナ
+  const selectedContainerNos =
+    new Set(
+      (
+        Array.isArray(task.cargo_refs)
+          ? task.cargo_refs
+          : []
+      )
+        .filter(ref =>
+          String(ref?.type || '').toUpperCase() ===
+          'CONTAINER'
+        )
+        .map(ref =>
+          String(ref.id || '')
+        )
+    );
+
+
+  // =====================================================
+  // 配送業者 options
+  // =====================================================
+  const truckerOptions =
+    (pageData?.truckers || [])
+      .map(t => {
+
+        const code =
+          String(t.partner_code || '');
+
+        const selected =
+          code === selectedTrucker
+            ? ' selected'
+            : '';
+
+        return (
+          '<option value="' +
+            escapeHtml(code) +
+            '"' +
+            selected +
+          '>' +
+            escapeHtml(
+              t.partner_name ||
+              t.partner_code ||
+              ''
+            ) +
+          '</option>'
+        );
+      })
+      .join('');
 
       const pickupOptions =
   [
@@ -375,26 +466,38 @@
     .join('');
 
       const cargoHtml =
-        (pageData?.containers || [])
-          .map(c =>
-            '<label class="cargo-item">' +
-              '<input type="checkbox" ' +
-                'data-container-no="' +
-                  escapeHtml(c.container_no || '') +
-                '">' +
-              '<span>' +
-                escapeHtml(
-                  [
-                    c.container_no,
-                    c.container_type
-                  ]
-                    .filter(Boolean)
-                    .join(' / ')
-                ) +
-              '</span>' +
-            '</label>'
-          )
-          .join('');
+  (pageData?.containers || [])
+    .map(c => {
+      const containerNo =
+        String(c.container_no || '');
+
+      const checked =
+        selectedContainerNos.has(containerNo)
+          ? ' checked'
+          : '';
+
+      return (
+        '<label class="cargo-item">' +
+          '<input type="checkbox" ' +
+            'data-container-no="' +
+              escapeHtml(containerNo) +
+            '"' +
+            checked +
+          '>' +
+          '<span>' +
+            escapeHtml(
+              [
+                c.container_no,
+                c.container_type
+              ]
+                .filter(Boolean)
+                .join(' / ')
+            ) +
+          '</span>' +
+        '</label>'
+      );
+    })
+    .join('');
 
       return (
         '<div class="task-title">' +
@@ -431,22 +534,28 @@
 
         '<div class="grid-3">' +
 
-          '<div class="input-group">' +
-            '<label class="label">引取日</label>' +
-            '<input type="date" data-field="pickup_date">' +
-          '</div>' +
+  '<div class="input-group">' +
+    '<label class="label">引取日</label>' +
+    '<input type="date" ' +
+      'data-field="pickup_date" ' +
+      'value="' + escapeHtml(task.pickup_date || '') + '">' +
+  '</div>' +
 
-          '<div class="input-group">' +
-            '<label class="label">引取時間</label>' +
-            '<input type="time" data-field="pickup_time">' +
-          '</div>' +
+  '<div class="input-group">' +
+    '<label class="label">引取時間</label>' +
+    '<input type="time" ' +
+      'data-field="pickup_time" ' +
+      'value="' + escapeHtml(task.pickup_time || '') + '">' +
+  '</div>' +
 
-          '<div class="input-group">' +
-            '<label class="label">車種</label>' +
-            '<input type="text" data-field="vehicle_type">' +
-          '</div>' +
+  '<div class="input-group">' +
+    '<label class="label">車種</label>' +
+    '<input type="text" ' +
+      'data-field="vehicle_type" ' +
+      'value="' + escapeHtml(task.vehicle_type || '') + '">' +
+  '</div>' +
 
-        '</div>' +
+'</div>' +
 
         '<div class="input-group">' +
           '<label class="label">対象コンテナ</label>' +
@@ -477,11 +586,69 @@
     }
 
     function editRequest(requestId) {
-      alert(
-        '編集機能は次の段階で追加します: ' +
-        requestId
+  if (!pageData) return;
+
+  const request =
+    (pageData.requests || [])
+      .find(r =>
+        String(r.transport_request_id) ===
+        String(requestId)
       );
-    }
+
+  if (!request) {
+    return alert('対象の配送依頼が見つかりません');
+  }
+
+  const tasks =
+    (pageData.transport_tasks || [])
+      .filter(task =>
+        String(task.transport_request_id) ===
+        String(requestId)
+      )
+      .sort((a, b) =>
+        Number(a.sort_no || 0) -
+        Number(b.sort_no || 0)
+      );
+
+  editingRequestId =
+    request.transport_request_id;
+
+  // -----------------------------------------------------
+  // 上部表示を編集中Requestへ変更
+  // -----------------------------------------------------
+  document.getElementById('next-suffix').textContent =
+    request.request_suffix || '-';
+
+  document.getElementById('next-request-no').textContent =
+    request.request_no || '-';
+
+  // -----------------------------------------------------
+  // Task画面をクリア
+  // -----------------------------------------------------
+  const taskContainer =
+    document.getElementById('task-container');
+
+  taskContainer.innerHTML = '';
+
+  taskSeq = 0;
+
+  // -----------------------------------------------------
+  // 保存済みTaskを復元
+  // -----------------------------------------------------
+  if (!tasks.length) {
+    addTask();
+    return;
+  }
+
+  tasks.forEach(task => {
+    addTask(task);
+  });
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth'
+  });
+}
 
     async function openDeliveryRequest(
   transportRequestId
@@ -761,27 +928,43 @@ if (pickupSource.startsWith('INBOUND:')) {
     // =====================================================
     // POST
     // =====================================================
-    const payload = {
-      shipment_id:
-        pageData.shipment.shipment_id,
+    const editingRequest =
+  editingRequestId
+    ? (pageData.requests || [])
+        .find(r =>
+          String(r.transport_request_id) ===
+          String(editingRequestId)
+        )
+    : null;
 
-      request_no:
-        pageData.next_request_no,
+const payload = {
+  shipment_id:
+    pageData.shipment.shipment_id,
 
-      request_suffix:
-        pageData.next_suffix,
+  transport_request_id:
+    editingRequestId || null,
 
-      request_type:
-        'ADVANCED',
+  request_no:
+    editingRequest?.request_no ||
+    pageData.next_request_no,
 
-      status:
-        'DRAFT',
+  request_suffix:
+    editingRequest?.request_suffix ||
+    pageData.next_suffix,
 
-      remarks:
-        '',
+  request_type:
+    'ADVANCED',
 
-      tasks
-    };
+  status:
+    editingRequest?.status ||
+    'DRAFT',
+
+  remarks:
+    editingRequest?.remarks ||
+    '',
+
+  tasks
+};
 
     console.log(
       '[TRANSPORT SAVE PAYLOAD]',
@@ -815,6 +998,7 @@ if (pickupSource.startsWith('INBOUND:')) {
       ' を保存しました'
     );
 
+    editingRequestId = null;
     // =====================================================
     // 保存後再読込
     // → B保存後なら次の番号Cへ更新される
