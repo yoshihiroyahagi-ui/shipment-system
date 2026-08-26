@@ -295,24 +295,33 @@
     }).join('');
 }
 
-    function addTask() {
-      taskSeq += 1;
+    function addTask(taskData = null) {
+  taskSeq += 1;
 
-      const container =
-        document.getElementById('task-container');
+  const container =
+    document.getElementById('task-container');
 
-      const div =
-        document.createElement('div');
+  const div =
+    document.createElement('div');
 
-      div.className = 'card transport-task';
-      div.dataset.taskIndex = String(taskSeq);
+  div.className = 'card transport-task';
+  div.dataset.taskIndex = String(taskSeq);
 
-      div.innerHTML =
-        buildTaskHtml(taskSeq);
+  // 編集時は既存Task IDも保持
+  if (taskData?.transport_task_id) {
+    div.dataset.transportTaskId =
+      taskData.transport_task_id;
+  }
 
-      container.appendChild(div);
-    }
+  // ★ 保存済みTaskをbuildTaskHtmlへ渡す
+  div.innerHTML =
+    buildTaskHtml(
+      taskSeq,
+      taskData
+    );
 
+  container.appendChild(div);
+}
     function buildTaskHtml(index, task = null) {
 
   task = task || {};
@@ -600,9 +609,11 @@
         '</div>' +
 
         '<div class="input-group">' +
-          '<label class="label">備考</label>' +
-          '<textarea rows="3" data-field="remarks"></textarea>' +
-        '</div>'
+  '<label class="label">備考</label>' +
+  '<textarea rows="3" data-field="remarks">' +
+    escapeHtml(task.remarks || '') +
+  '</textarea>' +
+'</div>'
       );
     }
 
@@ -646,7 +657,7 @@
       );
 
   console.log('[EDIT TASKS]', tasks);
-  
+
   editingRequestId =
     request.transport_request_id;
 
