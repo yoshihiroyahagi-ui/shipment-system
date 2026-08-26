@@ -17,6 +17,7 @@ import { resolveDeliveryPayload } from './services/deliveryResolver.js';
 import { resolveInvoicePayloadByInvoiceId } from './services/invoiceResolver.js';
 import { renderInvoiceHtml } from './renderers/invoiceRenderer.js';
 import { renderTotalInvoiceHtml } from './renderers/totalInvoiceRenderer.js';
+import { resolveAdvancedDeliveryPayload } from './service/advancedDeliveryResolver.js';
 
 const app = express();
 
@@ -6908,7 +6909,11 @@ app.post('/api/doc-token', async (req, res) => {
 app.get('/doc/:docType', async (req, res) => {
   try {
     const docType = req.params.docType;
-    const { shipment_id, token } = req.query || {};
+    const {
+  shipment_id,
+  token,
+  transport_request_id
+} = req.query || {};
 
     if (!['an', 'customs', 'delivery'].includes(docType)) {
       return res.status(404).send('Invalid document type');
@@ -6945,8 +6950,31 @@ app.get('/doc/:docType', async (req, res) => {
 let html = '';
 
 if (docType === 'delivery') {
-  payload = await resolveDeliveryPayload(shipment_id);
-  console.log('[delivery payload]', JSON.stringify(payload, null, 2));
+
+  if (transport_request_id) {
+
+    payload = await resolveAdvancedDeliveryPayload(
+      shipment_id,
+      transport_request_id
+    );
+
+    console.log(
+      '[advanced delivery payload]',
+      JSON.stringify(payload, null, 2)
+    );
+
+  } else {
+
+    payload = await resolveDeliveryPayload(
+      shipment_id
+    );
+
+    console.log(
+      '[delivery payload]',
+      JSON.stringify(payload, null, 2)
+    );
+  }
+
   html = buildDeliveryHtmlFromPayload(payload);
 
 } else {
