@@ -858,22 +858,16 @@ if (pickupSource.startsWith('INBOUND:')) {
           getValue('pickup_time') || null,
 
         delivery_place_name:
-          deliveryLine?.delivery_dest_name || null,
+  deliveryDest?.dest_name || null,
 
-        delivery_address:
-          deliveryLine?.delivery_address || null,
+delivery_address:
+  deliveryDest?.display_address || null,
 
-        delivery_date:
-          deliveryLine?.delivery_fixed ||
-          deliveryLine?.delivery_plan_date ||
-          deliveryLine?.delivery_request_date ||
-          null,
+delivery_date:
+  getValue('delivery_date') || null,
 
-        delivery_time:
-          deliveryLine?.delivery_fixed_time ||
-          deliveryLine?.delivery_plan_time ||
-          deliveryLine?.delivery_request_time ||
-          null,
+delivery_time:
+  getValue('delivery_time') || null,
 
         vehicle_type:
           getValue('vehicle_type') || null,
