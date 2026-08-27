@@ -122,6 +122,43 @@ export async function resolveAdvancedDeliveryPayload(
   }
 
   // =====================================================
+// Shipment Items / 品名
+// 新案件：shipment_items
+// 旧案件：shipment_lines をフォールバック
+// =====================================================
+const { data: itemRows, error: itemErr } = await supabase
+  .from('shipment_items')
+  .select(`
+    shipment_id,
+    commodity
+  `)
+  .eq('shipment_id', shipmentId);
+
+if (itemErr) throw itemErr;
+
+let shipmentCommodities = [
+  ...new Set(
+    (itemRows || [])
+      .map(item =>
+        String(item.commodity || '').trim()
+      )
+      .filter(Boolean)
+  )
+];
+
+// shipment_items がない旧案件は shipment_lines から取得
+if (shipmentCommodities.length === 0) {
+  shipmentCommodities = [
+    ...new Set(
+      (normalizedLines || [])
+        .map(line =>
+          String(line.commodity || '').trim()
+        )
+        .filter(Boolean)
+    )
+  ];
+}
+  // =====================================================
   // shipment_lines
   // =====================================================
   let lines = [];
@@ -526,9 +563,7 @@ const advancedLines =
 
       // 品名欄
       commodity:
-        containerNos.length > 0
-          ? 'Container: ' + containerNos.join(', ')
-          : '',
+        shipmentCommodities.join('\n'),
 
       commodity_note:
         ''
