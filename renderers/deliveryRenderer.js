@@ -23,6 +23,16 @@ export function buildDeliveryHtmlFromPayload(data = {}) {
   const delivery = data.delivery || {};
   const s = data.shipment || {};
   const lines = data.lines || [];
+  const transportTasks =
+  data.transport_tasks || [];
+
+const firstTransportTask =
+  transportTasks[0] || {};
+
+const displayVehicleType =
+  firstTransportTask.vehicle_type ||
+  s.vehicle_type ||
+  '';
   const normalizedLines = [];
   const requestNo =
   data.transport_request?.request_no ||
@@ -413,7 +423,7 @@ const deliveryBlocksHtml = groupedLines.map((line, idx) => {
       <th style="width:36mm;">搬出希望日 / 車種</th>
       <td class="small">${esc([
         customs.pickupDate ? `搬出希望日：${fmtDate(customs.pickupDate)}` : '',
-        s.vehicle_type ? `車種：${s.vehicle_type}` : ''
+        displayVehicleType ? `車種：${displayVehicleType}` : ''
       ].filter(Boolean).join('\n'))}</td>
     </tr>
   </table>
