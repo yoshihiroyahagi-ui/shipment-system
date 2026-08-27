@@ -468,6 +468,73 @@ export async function resolveAdvancedDeliveryPayload(
       };
     });
 
+    // =====================================================
+// Advanced Task → deliveryRenderer用 lines
+// =====================================================
+const advancedLines =
+  normalizedTasks.map(task => {
+
+    const cargoRefs =
+      Array.isArray(task.cargo_refs)
+        ? task.cargo_refs
+        : [];
+
+    const containerNos =
+      cargoRefs
+        .filter(ref =>
+          String(ref?.type || '').toUpperCase() === 'CONTAINER'
+        )
+        .map(ref =>
+          String(ref?.id || '').trim()
+        )
+        .filter(Boolean);
+
+    return {
+      line_id:
+        task.transport_task_id,
+
+      // 配送日時
+      delivery_fixed:
+        task.delivery_date || null,
+
+      delivery_fixed_time:
+        task.delivery_time || null,
+
+      // 配送先
+      delivery_dest_name:
+        task.delivery_place_name || '',
+
+      delivery_address1:
+        task.delivery_address || '',
+
+      delivery_address2:
+        '',
+
+      // 車両
+      vehicle_type:
+        task.vehicle_type || '',
+
+      carrier_name:
+        task.trucker?.partner_name || '',
+
+      // 備考
+      delivery_note:
+        task.remarks || '',
+
+      remarks:
+        task.remarks || '',
+
+      // 品名欄
+      commodity:
+        containerNos.length > 0
+          ? 'Container: ' + containerNos.join(', ')
+          : '',
+
+      commodity_note:
+        ''
+    };
+  });
+
   // =====================================================
   // Return
   // 既存 deliveryRenderer と互換になる形を維持
@@ -493,7 +560,9 @@ export async function resolveAdvancedDeliveryPayload(
       '',
 
     lines:
-      normalizedLines,
+  advancedLines.length > 0
+    ? advancedLines
+    : normalizedLines,
 
     containers:
       normalizedContainers,

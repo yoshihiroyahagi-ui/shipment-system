@@ -290,6 +290,15 @@
             '依頼書を開く' +
           '</button>' +
 
+          '<button class="btn" ' +
+            'onclick="deleteRequest(\'' +
+              escapeJs(r.transport_request_id || '') +
+              '\', \'' +
+              escapeJs(r.request_no || '') +
+            '\')">' +
+            '削除' +
+          '</button>' +
+
         '</div>'
       );
     }).join('');
@@ -586,19 +595,26 @@
   '</div>' +
 
   '<div class="input-group">' +
-    '<label class="label">引取時間</label>' +
-    '<input type="time" ' +
-      'data-field="pickup_time" ' +
-      'value="' + escapeHtml(task.pickup_time || '') + '">' +
+    '<label class="label">配達日</label>' +
+    '<input type="date" ' +
+      'data-field="delivery_date" ' +
+      'value="' + escapeHtml(task.delivery_date || '') + '">' +
   '</div>' +
 
   '<div class="input-group">' +
-    '<label class="label">車種</label>' +
-    '<input type="text" ' +
-      'data-field="vehicle_type" ' +
-      'value="' + escapeHtml(task.vehicle_type || '') + '">' +
+    '<label class="label">配達時間</label>' +
+    '<input type="time" ' +
+      'data-field="delivery_time" ' +
+      'value="' + escapeHtml(task.delivery_time || '') + '">' +
   '</div>' +
 
+'</div>' +
+
+'<div class="input-group" style="max-width:320px;">' +
+  '<label class="label">車種</label>' +
+  '<input type="text" ' +
+    'data-field="vehicle_type" ' +
+    'value="' + escapeHtml(task.vehicle_type || '') + '">' +
 '</div>' +
 
         '<div class="input-group">' +
@@ -902,20 +918,17 @@ if (pickupSource.startsWith('INBOUND:')) {
         pickup_date:
           getValue('pickup_date') || null,
 
-        pickup_time:
-          getValue('pickup_time') || null,
-
         delivery_place_name:
-  deliveryDest?.dest_name || null,
+          deliveryDest?.dest_name || null,
 
-delivery_address:
-  deliveryDest?.display_address || null,
+        delivery_address:
+          deliveryDest?.display_address || null,
 
-delivery_date:
-  getValue('delivery_date') || null,
+        delivery_date:
+          getValue('delivery_date') || null,
 
-delivery_time:
-  getValue('delivery_time') || null,
+        delivery_time:
+          getValue('delivery_time') || null,
 
         vehicle_type:
           getValue('vehicle_type') || null,

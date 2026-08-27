@@ -11371,6 +11371,46 @@ app.post('/api/admin/transport-arrangement', async (req, res) => {
     });
   }
 });
+app.delete('/api/admin/transport-arrangement/:transportRequestId', async (req, res) => {
+  try {
+    const transportRequestId =
+      String(req.params.transportRequestId || '').trim();
+
+    if (!transportRequestId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'transportRequestId is required'
+      });
+    }
+
+    const { error: taskErr } = await supabase
+      .from('transport_tasks')
+      .delete()
+      .eq('transport_request_id', transportRequestId);
+
+    if (taskErr) throw taskErr;
+
+    const { error: requestErr } = await supabase
+      .from('transport_requests')
+      .delete()
+      .eq('transport_request_id', transportRequestId);
+
+    if (requestErr) throw requestErr;
+
+    return res.json({
+      ok: true,
+      message: '詳細配送依頼を削除しました'
+    });
+
+  } catch (err) {
+    console.error('[transport arrangement delete]', err);
+
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`)
 })
