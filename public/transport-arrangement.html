@@ -778,6 +778,37 @@
     );
   }
 }
+async function deleteRequest(requestId, requestNo) {
+  if (!confirm(
+    (requestNo || 'この依頼') +
+    ' を削除しますか？'
+  )) {
+    return;
+  }
+
+  try {
+    await apiFetch(
+      '/api/admin/transport-arrangement/' +
+        encodeURIComponent(requestId),
+      {
+        method: 'DELETE'
+      }
+    );
+
+    if (editingRequestId === requestId) {
+      editingRequestId = null;
+    }
+
+    document.getElementById('task-container').innerHTML = '';
+    taskSeq = 0;
+
+    await loadArrangement();
+
+  } catch (err) {
+    console.error('deleteRequest error:', err);
+    alert(err.message || '削除に失敗しました');
+  }
+}
 
     async function saveArrangement() {
   try {
