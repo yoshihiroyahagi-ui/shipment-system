@@ -2552,6 +2552,7 @@ app.post('/api/invoice/copy', async (req, res) => {
         sourcePayables.map(payable => {
 
           const {
+            payable_id,
             invoice_id,
             invoice_line_id,
 
