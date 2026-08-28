@@ -2342,6 +2342,330 @@ const headerUpdate = {
     res.status(500).json({ ok: false, error: err.message || String(err) });
   }
 });
+
+app.post('/api/invoice/copy', async (req, res) => {
+  try {
+    const {
+      invoice_id: sourceInvoiceId
+    } = req.body || {};
+
+    if (!sourceInvoiceId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'invoice_id is required'
+      });
+    }
+
+    const nowIso =
+      new Date().toISOString();
+
+    // =====================================================
+    // ① 元請求書ヘッダー取得
+    // =====================================================
+    const {
+      data: sourceHeader,
+      error: headerErr
+    } = await supabase
+      .from('invoice_headers')
+      .select('*')
+      .eq('invoice_id', sourceInvoiceId)
+      .single();
+
+    if (headerErr) throw headerErr;
+
+    if (!sourceHeader) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Source invoice not found'
+      });
+    }
+
+    // =====================================================
+    // ② 元売上明細取得
+    // =====================================================
+    const {
+      data: sourceLines,
+      error: linesErr
+    } = await supabase
+      .from('invoice_lines')
+      .select('*')
+      .eq('invoice_id', sourceInvoiceId)
+      .order('line_no', {
+        ascending: true
+      });
+
+    if (linesErr) throw linesErr;
+
+    // =====================================================
+    // ③ 元仕入明細取得
+    // =====================================================
+    const {
+      data: sourcePayables,
+      error: payablesErr
+    } = await supabase
+      .from('payable_lines')
+      .select('*')
+      .eq('invoice_id', sourceInvoiceId)
+      .order('created_at', {
+        ascending: true
+      });
+
+    if (payablesErr) throw payablesErr;
+
+    // =====================================================
+    // ④ 新しいinvoice_headers作成
+    // =====================================================
+
+    // DB管理項目は除外
+    const {
+      invoice_id,
+      invoice_no,
+      created_at,
+      updated_at,
+
+      // コピー元のstatusも使わない
+      status,
+
+      ...copyableHeader
+    } = sourceHeader;
+
+    const newHeaderPayload = {
+      ...copyableHeader,
+
+      // ---------------------------------
+      // コピー時に初期化する項目
+      // ---------------------------------
+      invoice_no: null,
+      status: 'draft',
+
+      created_at: nowIso,
+      updated_at: nowIso
+    };
+
+    const {
+      data: newHeader,
+      error: insertHeaderErr
+    } = await supabase
+      .from('invoice_headers')
+      .insert(newHeaderPayload)
+      .select('*')
+      .single();
+
+    if (insertHeaderErr) {
+      throw insertHeaderErr;
+    }
+
+    const newInvoiceId =
+      newHeader.invoice_id;
+
+    // =====================================================
+    // ⑤ invoice_linesをコピー
+    // =====================================================
+    let insertedLines = [];
+
+    if (
+      Array.isArray(sourceLines) &&
+      sourceLines.length > 0
+    ) {
+      const copiedLines =
+        sourceLines.map(line => {
+
+          const {
+            invoice_line_id,
+            invoice_id,
+            created_at,
+            updated_at,
+            ...copyableLine
+          } = line;
+
+          return {
+            ...copyableLine,
+
+            invoice_id:
+              newInvoiceId,
+            
+            line_note: null,
+            memo: null,
+
+            created_at:
+              nowIso,
+
+            updated_at:
+              nowIso
+          };
+        });
+
+      const {
+        data: newLines,
+        error: insertLinesErr
+      } = await supabase
+        .from('invoice_lines')
+        .insert(copiedLines)
+        .select('*');
+
+      if (insertLinesErr) {
+        throw insertLinesErr;
+      }
+
+      insertedLines =
+        newLines || [];
+    }
+
+    // =====================================================
+    // ⑥ 旧invoice_line_id → 新invoice_line_id の対応表
+    // =====================================================
+    const oldLineNoToOldId =
+      new Map(
+        (sourceLines || []).map(line => [
+          Number(line.line_no),
+          line.invoice_line_id
+        ])
+      );
+
+    const oldLineIdToNewLineId =
+      new Map();
+
+    insertedLines.forEach(newLine => {
+      const oldLineId =
+        oldLineNoToOldId.get(
+          Number(newLine.line_no)
+        );
+
+      if (oldLineId) {
+        oldLineIdToNewLineId.set(
+          oldLineId,
+          newLine.invoice_line_id
+        );
+      }
+    });
+
+    // =====================================================
+    // ⑦ payable_linesをコピー
+    // =====================================================
+    let insertedPayables = [];
+
+    if (
+      Array.isArray(sourcePayables) &&
+      sourcePayables.length > 0
+    ) {
+      const copiedPayables =
+        sourcePayables.map(payable => {
+
+          const {
+            payable_line_id,
+            invoice_id,
+            invoice_line_id,
+
+            vendor_invoice_no,
+            payment_due_date,
+            payment_date,
+
+            status,
+
+            line_note,
+            memo,
+
+            created_at,
+            updated_at,
+
+            ...copyablePayable
+          } = payable;
+
+          return {
+            ...copyablePayable,
+
+            invoice_id:
+              newInvoiceId,
+
+            // 売上明細との紐付けを新IDへ変更
+            invoice_line_id:
+              invoice_line_id
+                ? oldLineIdToNewLineId.get(
+                    invoice_line_id
+                  ) || null
+                : null,
+
+            // ---------------------------------
+            // コピーしない項目
+            // ---------------------------------
+            vendor_invoice_no:
+              null,
+
+            payment_due_date:
+              null,
+
+            payment_date:
+              null,
+            
+            line_note: null,
+            memo: null,
+
+            status:
+              'planned',
+
+            created_at:
+              nowIso,
+
+            updated_at:
+              nowIso
+          };
+        });
+
+      const {
+        data: newPayables,
+        error: insertPayablesErr
+      } = await supabase
+        .from('payable_lines')
+        .insert(copiedPayables)
+        .select('*');
+
+      if (insertPayablesErr) {
+        throw insertPayablesErr;
+      }
+
+      insertedPayables =
+        newPayables || [];
+    }
+
+    // =====================================================
+    // ⑧ 完了
+    // =====================================================
+    return res.json({
+      ok: true,
+
+      source_invoice_id:
+        sourceInvoiceId,
+
+      invoice_id:
+        newInvoiceId,
+
+      header:
+        newHeader,
+
+      lines:
+        insertedLines,
+
+      payables:
+        insertedPayables,
+
+      message:
+        '請求書をコピーしました'
+    });
+
+  } catch (err) {
+    console.error(
+      '[invoice/copy] error:',
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error:
+        err.message ||
+        String(err)
+    });
+  }
+});
 // --- session store (今日はメモリでOK) ---
 // --- customer session store：DB永続化版 ---
 const SESSION_TTL_MS =
