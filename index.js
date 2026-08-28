@@ -2665,6 +2665,78 @@ app.post('/api/invoice/copy', async (req, res) => {
     });
   }
 });
+app.delete('/api/invoice/:invoiceId', async (req, res) => {
+  try {
+    const invoiceId =
+      String(req.params.invoiceId || '').trim();
+
+    if (!invoiceId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'invoiceId is required'
+      });
+    }
+
+    const { data: header, error: hErr } = await supabase
+      .from('invoice_headers')
+      .select('invoice_id, invoice_no, status')
+      .eq('invoice_id', invoiceId)
+      .maybeSingle();
+
+    if (hErr) throw hErr;
+
+    if (!header) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Invoice not found'
+      });
+    }
+
+    if (String(header.status || '').toLowerCase() !== 'draft') {
+      return res.status(400).json({
+        ok: false,
+        error: 'draft の請求書だけ削除できます'
+      });
+    }
+
+    // payable_lines / invoice_lines はFKの設定次第だが、
+    // 明示削除しておく方が分かりやすい
+    const { error: pErr } = await supabase
+      .from('payable_lines')
+      .delete()
+      .eq('invoice_id', invoiceId);
+
+    if (pErr) throw pErr;
+
+    const { error: lErr } = await supabase
+      .from('invoice_lines')
+      .delete()
+      .eq('invoice_id', invoiceId);
+
+    if (lErr) throw lErr;
+
+    const { error: deleteErr } = await supabase
+      .from('invoice_headers')
+      .delete()
+      .eq('invoice_id', invoiceId);
+
+    if (deleteErr) throw deleteErr;
+
+    return res.json({
+      ok: true,
+      invoice_id: invoiceId,
+      message: '請求書を削除しました'
+    });
+
+  } catch (err) {
+    console.error('[invoice delete] error:', err);
+
+    return res.status(500).json({
+      ok: false,
+      error: err.message || String(err)
+    });
+  }
+});
 // --- session store (今日はメモリでOK) ---
 // --- customer session store：DB永続化版 ---
 const SESSION_TTL_MS =
