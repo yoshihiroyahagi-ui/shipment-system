@@ -85,6 +85,7 @@ const pageHtmls = pages.map((pageRows, pageIndex) => {
         <td class="center">${esc(r.invoice_no)}</td>
         <td class="right">${yen(r.taxable_amount)}</td>
         <td class="right">${yen(r.tax_amount)}</td>
+        <td class="right">${yen(r.non_taxable_amount)}</td>
         <td class="right">${yen(
           Number(r.exempt_amount || 0) +
           Number(r.advance_amount || 0)
@@ -101,8 +102,11 @@ const pageHtmls = pages.map((pageRows, pageIndex) => {
         <td colspan="2" class="center">合計</td>
         <td class="right">${yen(totals.taxable_amount)}</td>
         <td class="right">${yen(totals.tax_amount)}</td>
-        <td class="right">${yen(totals.exempt_amount)}</td>
-        <td class="right">${yen(totals.advance_amount)}</td>
+        <td class="right">${yen(totals.non_taxable_amount)}</td>
+        <td class="right">${yen(
+          Number(totals.exempt_amount || 0) +
+          Number(totals.advance_amount || 0)
+        )}</td>
         <td class="right">${yen(totals.total_amount)}</td>
         <td class="blank"></td>
       </tr>
