@@ -68,7 +68,7 @@ const tableHeaderHtml = `
       <th style="width:11.11%;">課税対象金額</th>
       <th style="width:11.11%;">消費税</th>
       <th style="width:11.11%;">非課税金額</th>
-      <th style="width:11.11%;">対象外／立替</th>
+      <th style="width:11.11%;">免税／立替</th>
       <th style="width:11.11%;">請求合計金額</th>
       <th style="width:27.78%;">備考</th>
     </tr>
@@ -85,8 +85,10 @@ const pageHtmls = pages.map((pageRows, pageIndex) => {
         <td class="center">${esc(r.invoice_no)}</td>
         <td class="right">${yen(r.taxable_amount)}</td>
         <td class="right">${yen(r.tax_amount)}</td>
-        <td class="right">${yen(r.exempt_amount)}</td>
-        <td class="right">${yen(r.advance_amount)}</td>
+        <td class="right">${yen(
+          Number(r.exempt_amount || 0) +
+          Number(r.advance_amount || 0)
+        )}</td>
         <td class="right bold">${yen(r.total_amount)}</td>
         <td class="remark-cell">${renderRemark(r)}</td>
       </tr>
