@@ -342,6 +342,7 @@ async function buildTotalInvoiceData({
   const rows = (invoices || []).map(inv => {
     let taxable = 0;
     let tax = 0;
+    let non_taxable = 0;
     let exempt = 0;
     let advance = 0;
     let total = 0;
@@ -352,25 +353,28 @@ async function buildTotalInvoiceData({
       const gross = Number(line.billing_amount_gross || 0);
       const taxType = String(line.billing_tax_type || 'taxable');
 
-      if (taxType === 'taxable') {
+      if (type === 'taxable') {
         taxable += net;
         tax += taxAmount;
-      } else if (
-        taxType === 'exempt' ||
-        taxType === 'non_taxable'
-      ) {
+
+      } else if (type === 'non_taxable') {
+        nonTaxable += net;
+
+      } else if (type === 'exempt') {
         exempt += net;
+
       } else if (
-        taxType === 'advance' ||
-        taxType === 'out_of_scope'
+        type === 'advance' ||
+        type === 'out_of_scope'
       ) {
         advance += net;
+
       } else {
         taxable += net;
         tax += taxAmount;
       }
 
-      total += gross || net + taxAmount;
+      total += gross || (net + taxAmount);
     });
 
     return {
@@ -9589,7 +9593,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
           tax += taxAmount;
 
         } else if (type === 'non_taxable') {
-          nonTaxable += net;
+          non_taxable += net;
 
         } else if (type === 'exempt') {
           exempt += net;
