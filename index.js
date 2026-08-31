@@ -353,19 +353,19 @@ async function buildTotalInvoiceData({
       const gross = Number(line.billing_amount_gross || 0);
       const taxType = String(line.billing_tax_type || 'taxable');
 
-      if (type === 'taxable') {
+      if (taxType === 'taxable') {
         taxable += net;
         tax += taxAmount;
 
-      } else if (type === 'non_taxable') {
+      } else if (taxType === 'non_taxable') {
         nonTaxable += net;
 
-      } else if (type === 'exempt') {
+      } else if (taxType === 'exempt') {
         exempt += net;
 
       } else if (
-        type === 'advance' ||
-        type === 'out_of_scope'
+        taxType === 'advance' ||
+        taxType === 'out_of_scope'
       ) {
         advance += net;
 
