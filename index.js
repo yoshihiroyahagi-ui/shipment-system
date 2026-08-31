@@ -358,7 +358,7 @@ async function buildTotalInvoiceData({
         tax += taxAmount;
 
       } else if (taxType === 'non_taxable') {
-        nonTaxable += net;
+        non_taxable += net;
 
       } else if (taxType === 'exempt') {
         exempt += net;
