@@ -378,6 +378,7 @@ async function buildTotalInvoiceData({
       invoice_no: inv.invoice_no || '',
       taxable_amount: taxable,
       tax_amount: tax,
+      non_taxable_amount: non_taxable,
       exempt_amount: exempt,
       advance_amount: advance,
       total_amount: total,
@@ -391,6 +392,7 @@ async function buildTotalInvoiceData({
   const totals = rows.reduce((acc, r) => {
     acc.taxable_amount += r.taxable_amount;
     acc.tax_amount += r.tax_amount;
+    acc.nom_taxable_amount += r.non_taxable,
     acc.exempt_amount += r.exempt_amount;
     acc.advance_amount += r.advance_amount;
     acc.total_amount += r.total_amount;
@@ -398,6 +400,7 @@ async function buildTotalInvoiceData({
   }, {
     taxable_amount: 0,
     tax_amount: 0,
+    non_taxable_amount: 0,
     exempt_amount: 0,
     advance_amount: 0,
     total_amount: 0
@@ -9519,7 +9522,7 @@ app.get('/api/invoice/pdf', async (req, res) => {
 // 一括請求明細 API
 app.get('/api/invoice/bulk-detail', async (req, res) => {
   try {
-    const customerId = String(req.query.customer_code || '').trim();
+    const customerCode = String(req.query.customer_code || '').trim();
     const billingMonth = String(req.query.billing_month || '').trim();
 
     if (!customerId || !billingMonth) {
@@ -9570,6 +9573,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
 
       let taxable = 0;
       let tax = 0;
+      let non_taxable = 0;
       let exempt = 0;
       let advance = 0;
       let total = 0;
@@ -9583,9 +9587,17 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
         if (type === 'taxable') {
           taxable += net;
           tax += taxAmount;
-        } else if (type === 'exempt' || type === 'non_taxable') {
+
+        } else if (type === 'non_taxable') {
+          nonTaxable += net;
+
+        } else if (type === 'exempt') {
           exempt += net;
-        } else if (type === 'advance' || type === 'out_of_scope') {
+
+        } else if (
+          type === 'advance' ||
+          type === 'out_of_scope'
+        ) {
           advance += net;
         }
 
@@ -9597,6 +9609,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
         invoice_no: inv.invoice_no || '',
         taxable_amount: taxable,
         tax_amount: tax,
+        non_taxable_amount: non_taxable,
         exempt_amount: exempt,
         advance_amount: advance,
         total_amount: total,
@@ -9611,6 +9624,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
     const totals = rows.reduce((acc, r) => {
       acc.taxable_amount += r.taxable_amount;
       acc.tax_amount += r.tax_amount;
+      acc.non_taxable_amount += r.non_taxable_amount;
       acc.exempt_amount += r.exempt_amount;
       acc.advance_amount += r.advance_amount;
       acc.total_amount += r.total_amount;
