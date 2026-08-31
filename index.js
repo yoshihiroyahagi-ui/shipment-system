@@ -9636,6 +9636,7 @@ app.get('/api/invoice/bulk-detail', async (req, res) => {
     }, {
       taxable_amount: 0,
       tax_amount: 0,
+      non_taxable_amount: 0,
       exempt_amount: 0,
       advance_amount: 0,
       total_amount: 0
