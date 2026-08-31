@@ -396,7 +396,7 @@ async function buildTotalInvoiceData({
   const totals = rows.reduce((acc, r) => {
     acc.taxable_amount += r.taxable_amount;
     acc.tax_amount += r.tax_amount;
-    acc.nom_taxable_amount += r.non_taxable,
+    acc.non_taxable_amount += r.non_taxable,
     acc.exempt_amount += r.exempt_amount;
     acc.advance_amount += r.advance_amount;
     acc.total_amount += r.total_amount;
