@@ -11734,6 +11734,23 @@ app.post('/api/admin/transport-arrangement', async (req, res) => {
           unit:
             task.unit || null,
 
+          cargo_description:
+            task.cargo_description || null,
+
+          cargo_weight_kg:
+            task.cargo_weight_kg === '' ||
+            task.cargo_weight_kg === null ||
+            task.cargo_weight_kg === undefined
+              ? null
+              : Number(task.cargo_weight_kg),
+
+          cargo_cbm:
+            task.cargo_cbm === '' ||
+            task.cargo_cbm === null ||
+            task.cargo_cbm === undefined
+              ? null
+              : Number(task.cargo_cbm),
+
           remarks:
             task.remarks || null,
 

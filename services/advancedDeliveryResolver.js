@@ -233,6 +233,46 @@ if (shipmentCommodities.length === 0) {
         ''
     }));
 
+    const advancedContainers =
+  normalizedContainers.map(container => {
+
+    const containerNo =
+      String(container.container_no || '');
+
+    const task =
+      normalizedTasks.find(task =>
+        Array.isArray(task.cargo_refs) &&
+        task.cargo_refs.some(ref =>
+          String(ref?.type || '').toUpperCase() === 'CONTAINER' &&
+          String(ref?.id || '') === containerNo
+        )
+      );
+
+    if (!task) {
+      return container;
+    }
+
+    return {
+      ...container,
+
+      pcs:
+        task.quantity ??
+        container.pcs,
+
+      pkg_unit:
+        task.unit ||
+        container.pkg_unit,
+
+      gw:
+        task.cargo_weight_kg ??
+        container.gw,
+
+      cbm:
+        task.cargo_cbm ??
+        container.cbm
+    };
+  });
+
   // =====================================================
   // Lines Normalize
   // =====================================================
@@ -574,7 +614,14 @@ const advancedLines =
         shipmentCommodities.join('\n'),
 
       commodity_note:
-        ''
+  [
+    task.quantity && task.unit
+      ? `数量: ${task.quantity} ${task.unit}`
+      : '',
+    task.remarks || ''
+  ]
+    .filter(Boolean)
+    .join('\n')
     };
   });
 
@@ -608,7 +655,7 @@ const advancedLines =
     : normalizedLines,
 
     containers:
-      normalizedContainers,
+  advancedContainers,
 
     trucker,
 

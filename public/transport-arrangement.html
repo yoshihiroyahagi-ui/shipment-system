@@ -617,6 +617,49 @@
     'value="' + escapeHtml(task.vehicle_type || '') + '">' +
 '</div>' +
 
+'<div class="grid-3">' +
+
+  '<div class="input-group">' +
+    '<label class="label">数量</label>' +
+    '<input type="number" ' +
+      'data-field="quantity" ' +
+      'value="' + escapeHtml(task.quantity ?? '') + '">' +
+  '</div>' +
+
+  '<div class="input-group">' +
+    '<label class="label">単位</label>' +
+    '<input type="text" ' +
+      'data-field="unit" ' +
+      'value="' + escapeHtml(task.unit || '') + '">' +
+  '</div>' +
+
+  '<div class="input-group">' +
+    '<label class="label">内容</label>' +
+    '<input type="text" ' +
+      'data-field="cargo_description" ' +
+      'value="' + escapeHtml(task.cargo_description || '') + '">' +
+  '</div>' +
+
+'</div>' +
+
+'<div class="grid-3">' +
+
+  '<div class="input-group">' +
+    '<label class="label">重量 KG</label>' +
+    '<input type="number" step="0.001" ' +
+      'data-field="cargo_weight_kg" ' +
+      'value="' + escapeHtml(task.cargo_weight_kg ?? '') + '">' +
+  '</div>' +
+
+  '<div class="input-group">' +
+    '<label class="label">容積 M3</label>' +
+    '<input type="number" step="0.001" ' +
+      'data-field="cargo_cbm" ' +
+      'value="' + escapeHtml(task.cargo_cbm ?? '') + '">' +
+  '</div>' +
+
+'</div>' +
+
         '<div class="input-group">' +
           '<label class="label">対象コンテナ</label>' +
           '<div class="cargo-list">' +
@@ -960,6 +1003,21 @@ if (pickupSource.startsWith('INBOUND:')) {
 
         delivery_time:
           getValue('delivery_time') || null,
+
+        quantity:
+          getValue('quantity') || null,
+
+        unit:
+          getValue('unit') || null,
+
+        cargo_description:
+          getValue('cargo_description') || null,
+
+        cargo_weight_kg:
+          getValue('cargo_weight_kg') || null,
+
+        cargo_cbm:
+          getValue('cargo_cbm') || null,
 
         vehicle_type:
           getValue('vehicle_type') || null,
