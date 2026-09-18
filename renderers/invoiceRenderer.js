@@ -656,8 +656,11 @@ tbody tr.blank td{
           <span class="tax-value">¥${yen(nonTaxableTotal)}</span>
         </div>
         <div class="tax-cell">
-          <span class="tax-label">免税</span>
-          <span class="tax-value">¥${yen(exemptTotal)}</span>
+          <span class="tax-label">免税／立替</span>
+          <span class="tax-value">¥${yen(
+            Number(exemptTotal || 0) +
+            Number(advanceTotal || 0)
+          )}</span>
         </div>
       </div>
     </div>
