@@ -130,6 +130,10 @@ const salesGross =
   const exemptTotal = invoiceLines
     .filter(l => l.billing_tax_type === 'exempt')
     .reduce((sum, l) => sum + toNumber(l.billing_amount_net), 0);
+  
+  const advanceTotal = invoiceLines
+    .filter(l => l.billing_tax_type === 'advance')
+    .reduce((sum, l) => sum + toNumber(l.billing_amount_net), 0);
 
   const rowsHtml = invoiceLines.map((l, idx) => {
   const qty =
